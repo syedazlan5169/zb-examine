@@ -1,14 +1,16 @@
 # ZB Examine — Current State
 
-Last updated: 2026-09-07
+Last updated: 2026-09-08
 
 ## Project Status
 
 Initial Laravel and Docker development foundation is operational.
 
-No business-domain models or examination workflow have been implemented yet.
+The current domain foundation includes the `Examination`, `ExaminationCustomsFormNumber`, and `ExaminationPhoto` models, related enums, and the Nombor Borang Kastam parser.
 
-The project is intentionally at a clean infrastructure baseline before application features begin.
+The examination workflow and user-facing form have not yet been implemented.
+
+The Nombor Borang Kastam parser is now implemented and covered by dedicated unit tests. It normalizes complete numbers, expands the confirmed two-digit shorthand format, rejects malformed or duplicate values, and does not perform persistence.
 
 ## Runtime
 

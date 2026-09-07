@@ -238,3 +238,7 @@ Guest submission is public-facing.
 Examination retrieval and evidence viewing are not.
 
 Submission numbers must not act as authorization tokens granting public access to examination data or images.
+
+## D017 — Customs Form Parser Duplicate Input
+
+The customs form parser must reject duplicate normalized numbers rather than silently de-duplicating them. This includes duplicates introduced by shorthand expansion, and parsing remains atomic when any token fails.
