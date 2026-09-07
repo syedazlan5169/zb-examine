@@ -8,9 +8,53 @@ Initial Laravel and Docker development foundation is operational.
 
 The current domain foundation includes the `Examination`, `ExaminationCustomsFormNumber`, and `ExaminationPhoto` models, related enums, and the Nombor Borang Kastam parser.
 
+The submission-number generator is implemented: `App\Services\SubmissionNumberGenerator` allocates unique `ZB-YYMMDD-NNNN` numbers backed by a dedicated `submission_sequences` counter table with MySQL row-level locking, using the `Asia/Kuala_Lumpur` business timezone (`config('zb-examine.business_timezone')`) independently of the application's UTC `config('app.timezone')`. See D018 in docs/DECISIONS.md.
+
 The examination workflow and user-facing form have not yet been implemented.
 
 The Nombor Borang Kastam parser is now implemented and covered by dedicated unit tests. It normalizes complete numbers, expands the confirmed two-digit shorthand format, rejects malformed or duplicate values, and does not perform persistence.
+
+## Submission Number Generation
+
+`App\Services\SubmissionNumberGenerator::generate(?CarbonInterface $instant = null): string` allocates a `ZB-YYMMDD-NNNN` number for the business date of the given instant (or now), using the `submission_sequences` table and `SELECT ... FOR UPDATE` inside a transaction. Exhaustion beyond `9999` for a business date throws `App\Exceptions\SubmissionNumberSequenceExhausted`.
+
+`generate()` refuses to run if the connection already has an active transaction (`DB::connection()->transactionLevel() > 0`), throwing `App\Exceptions\SubmissionNumberAllocationInsideTransaction`. This makes the permanent-gap invariant enforced rather than conventional: allocation always commits on its own before a caller can wrap it in a larger transaction.
+
+Test coverage:
+
+```text
+tests/Feature/Services/SubmissionNumberGeneratorTest.php
+    first number, sequential numbers, next-date reset, zero-padding,
+    YYMMDD formatting, UTC/KL timezone boundary, exhaustion,
+    rejection when called inside an active transaction,
+    examinations.submission_no DB uniqueness
+
+tests/Concurrency/SubmissionNumberGeneratorConcurrencyTest.php
+    real MySQL 8.4, pcntl_fork with 20 competing processes,
+    run only via: vendor/bin/phpunit -c phpunit.concurrency.xml
+    against the isolated `zb_examine_test` schema (never the dev database)
+```
+
+### Test database provisioning (`zb_examine_test`)
+
+`zb_examine_test` is disposable test infrastructure for the concurrency suite only. The concurrency suite must never run against `zb_examine` (the dev database); both the test itself and the provisioning command below refuse to run unless the resolved database is exactly `zb_examine_test`.
+
+One-time step on a fresh environment (creates the schema and grants the app user access to it — requires MySQL root):
+
+```bash
+docker compose exec db mysql \
+  -uroot \
+  -prootsecret \
+  -e "CREATE DATABASE IF NOT EXISTS zb_examine_test; GRANT ALL PRIVILEGES ON zb_examine_test.* TO 'zb_examine'@'%'; FLUSH PRIVILEGES;"
+```
+
+Repeatable migration/reset of that schema, run any time afterwards:
+
+```bash
+docker compose exec app php artisan zb-examine:provision-concurrency-testing-database
+```
+
+(run with `DB_DATABASE=zb_examine_test` etc. in the environment; the command refuses to run against any other database.)
 
 ## Runtime
 
@@ -256,7 +300,6 @@ Important upcoming areas include:
 Examination model
 Multiple SMK/customs form numbers
 Guest vs authenticated agent submission
-Submission-number generation
 Agent profile snapshots
 Photo records
 Mobile agent form

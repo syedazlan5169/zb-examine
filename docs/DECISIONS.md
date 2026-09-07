@@ -242,3 +242,54 @@ Submission numbers must not act as authorization tokens granting public access t
 ## D017 — Customs Form Parser Duplicate Input
 
 The customs form parser must reject duplicate normalized numbers rather than silently de-duplicating them. This includes duplicates introduced by shorthand expansion, and parsing remains atomic when any token fails.
+
+## D018 — Submission Number Format and Generation Strategy
+
+Every successfully submitted examination receives a human-readable submission number in the fixed format:
+
+```text
+ZB-YYMMDD-NNNN
+```
+
+Example:
+
+```text
+ZB-260908-0001
+```
+
+`ZB` is a fixed prefix. `YYMMDD` is the business date. `NNNN` is a four-digit daily sequence starting at `0001`, resetting every business date, with a hard maximum of `9999`.
+
+### Business timezone stays separate from the application timezone
+
+`config('app.timezone')` remains `UTC`. General application timestamps (`created_at`, `updated_at`, logs, etc.) are not affected by this feature.
+
+A dedicated `config('zb-examine.business_timezone')` value (env `BUSINESS_TIMEZONE`, default `Asia/Kuala_Lumpur`) governs only the submission-number business date and daily sequence bucket. `App\Services\SubmissionNumberGenerator` reads this config value rather than hard-coding a timezone string.
+
+### Dedicated counter table
+
+A `submission_sequences` table holds one row per business date (`sequence_date` DATE UNIQUE, `last_number` UNSIGNED SMALLINT). Deriving the sequence from `COUNT`/`MAX` over `examinations` was rejected because it cannot be made race-free without effectively reinventing the same locking this table provides.
+
+`examinations.submission_no` remains `UNIQUE` and is not weakened. That constraint is the final database safety net; the generator's own locking is the primary correctness mechanism.
+
+### Concurrency strategy
+
+`SubmissionNumberGenerator::generate()` allocates a number inside a single MySQL transaction:
+
+1. An atomic no-op upsert (`INSERT ... ON DUPLICATE KEY UPDATE` via Laravel's `upsert()`) guarantees the day's row exists without a duplicate-key race, safe even on the first allocation of a new date.
+2. `SELECT ... FOR UPDATE` (`lockForUpdate()`) takes an exclusive row lock on that date's row, serializing concurrent callers for the same business date.
+3. `next = last_number + 1` is computed and written back inside the same locked transaction.
+4. If `next > 9999`, `App\Exceptions\SubmissionNumberSequenceExhausted` is thrown and the transaction rolls back untouched.
+
+`count(examinations) + 1` and unlocked `max(...) + 1` are explicitly rejected as unsafe under concurrency. This was verified with a real MySQL 8.4 concurrency test (`tests/Concurrency`, run via `phpunit.concurrency.xml` against the isolated `zb_examine_test` schema) using `pcntl_fork()` to run many genuinely competing OS processes — not a simulated/mocked test.
+
+### Gap policy — numbers are never reused, and this is enforced
+
+Once allocated, a submission number is permanently consumed, even if the examination that requested it later fails to persist. Gaps in the daily sequence are expected and acceptable; these are operational identifiers, not legal/invoice sequence numbers.
+
+`SubmissionNumberGenerator::generate()` refuses to run if the connection already has an active transaction (`DB::connection()->transactionLevel() > 0`), throwing `App\Exceptions\SubmissionNumberAllocationInsideTransaction` (a `LogicException` — programmer/integration misuse, not a user-facing error). This is an enforced runtime guard, not merely a documented convention: without it, Laravel would silently open a SAVEPOINT for a nested `generate()` call, and an outer transaction's rollback would undo the "allocated" number, contradicting the invariant above.
+
+Integration rule for the future examination submission service: allocate the submission number first and let that transaction commit, then start a separate transaction to persist the `Examination`. Calling the generator from inside a larger examination-persistence transaction on the same connection will throw `SubmissionNumberAllocationInsideTransaction` rather than silently risking an unsafe rollback.
+
+### Exhaustion is machine-readable only
+
+`SubmissionNumberSequenceExhausted` exposes an error code and the business date only. It must not contain Malay/English frontend copy; the eventual frontend maps the error code to a translated message via Laravel's translation keys (`ms` default, `en` fallback).
