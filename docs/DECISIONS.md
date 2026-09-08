@@ -293,3 +293,61 @@ Integration rule for the future examination submission service: allocate the sub
 ### Exhaustion is machine-readable only
 
 `SubmissionNumberSequenceExhausted` exposes an error code and the business date only. It must not contain Malay/English frontend copy; the eventual frontend maps the error code to a translated message via Laravel's translation keys (`ms` default, `en` fallback).
+
+## D019 — Examination Submission Pathway
+
+`App\Services\ExaminationSubmissionService::submit()` is the single pathway that creates a complete non-photo examination submission. It composes the existing parser and submission-number generator; it does not reimplement either, does not inspect `Auth`, and does not handle HTTP, Livewire state, translations, photos or notifications.
+
+### Fixed operation order
+
+```text
+capture one instant
+        |
+        v
+parse customs form numbers
+        |
+        v
+allocate submission number   <- commits on its own
+        |
+        v
+DB::transaction
+    +-- examinations row
+    +-- examination_customs_form_numbers rows
+        |
+        v
+return Examination
+```
+
+**Parsing happens before allocation.** Invalid Nombor Borang Kastam syntax must never consume a submission number.
+
+**Allocation commits before persistence.** The generator is called outside the examination transaction, so the permanent-gap rule from D018 survives any subsequent persistence failure. Consequently `submit()` must not itself be wrapped in an existing database transaction — the generator's `SubmissionNumberAllocationInsideTransaction` guard enforces this at runtime rather than by convention.
+
+### One captured instant
+
+`submit()` captures a single immutable UTC instant at entry and passes that same physical instant to both `SubmissionNumberGenerator::generate()` and `examinations.submitted_at`. A submission occurring at the business-timezone midnight boundary therefore cannot receive a number bucketed to one business date and a timestamp belonging to another.
+
+`submitted_at` is persisted in UTC like every other application timestamp. Only the `ZB-YYMMDD` bucket uses `config('zb-examine.business_timezone')`.
+
+The instant is an optional injectable parameter, so boundary behaviour is testable without mutating global time.
+
+### Snapshots come from submitted data
+
+All five `agent_*` columns are written from the submitted data only. The service never reads values from the `User` record, so guest and registered submissions behave identically and historical records stay frozen when a profile later changes (D010). Profile auto-fill is a future form/UI concern.
+
+The caller supplies the user context explicitly; `user_id` is `null` for guests. The submission DTO deliberately carries no `user_id`, so form input can never mass-assign record ownership.
+
+### Atomic examination persistence
+
+The `examinations` row and all `examination_customs_form_numbers` rows are created in one transaction. If any insert fails, the examination and every child row roll back together while the allocated submission number stays consumed. Parser, generator and database exceptions propagate unwrapped — no submission-specific exception type exists, because the existing ones are already specific and machine-readable.
+
+### `display_order` is 1-based project-wide
+
+`display_order` is a human/domain ordinal, not a PHP array index. The first child row is `1`. This applies to `examination_customs_form_numbers` now and to `examination_photos` when photos are implemented.
+
+### `*_other` canonicalization is enforced before persistence
+
+`App\Data\ExaminationSubmissionData::fromValidated()` canonicalizes the conditional fields: `form_type_other` is retained only when `form_type` is `other`, and `reason_other` only when `reason` is `other` (so a `null` or non-`other` reason always yields a `null` `reason_other`). A blank or whitespace-only `form_type_other` / `reason_other` also normalizes to `null`.
+
+This nulling applies to those two conditional fields only. The required fields (`agent_name`, `agent_phone`, `agent_code`, `agent_company_name`, `agent_station_code`) are trimmed but never converted to `null`; their validity remains the responsibility of the validation layer.
+
+This is a persistence-layer invariant, not merely UI validation, so stale hidden-form values cannot reach the database regardless of caller. The future Livewire/FormRequest layer still enforces `required_if` rules and provides localized error messages.

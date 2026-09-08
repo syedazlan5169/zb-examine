@@ -10,7 +10,9 @@ The current domain foundation includes the `Examination`, `ExaminationCustomsFor
 
 The submission-number generator is implemented: `App\Services\SubmissionNumberGenerator` allocates unique `ZB-YYMMDD-NNNN` numbers backed by a dedicated `submission_sequences` counter table with MySQL row-level locking, using the `Asia/Kuala_Lumpur` business timezone (`config('zb-examine.business_timezone')`) independently of the application's UTC `config('app.timezone')`. See D018 in docs/DECISIONS.md.
 
-The examination workflow and user-facing form have not yet been implemented.
+The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete non-photo submission by composing the parser and the number generator. See D019 in docs/DECISIONS.md.
+
+The user-facing form, authentication and photo workflow have not yet been implemented.
 
 The Nombor Borang Kastam parser is now implemented and covered by dedicated unit tests. It normalizes complete numbers, expands the confirmed two-digit shorthand format, rejects malformed or duplicate values, and does not perform persistence.
 
@@ -55,6 +57,45 @@ docker compose exec app php artisan zb-examine:provision-concurrency-testing-dat
 ```
 
 (run with `DB_DATABASE=zb_examine_test` etc. in the environment; the command refuses to run against any other database.)
+
+Note: any suite using `DatabaseMigrations` rolls its migrations back after the final test, leaving the schema empty. Re-run the provisioning command before the concurrency suite if a MySQL parity run preceded it.
+
+## Examination Submission
+
+`App\Services\ExaminationSubmissionService::submit(ExaminationSubmissionData $data, ?User $user = null, ?CarbonInterface $instant = null): Examination`
+
+Operation order is fixed: capture one immutable UTC instant, parse the customs form numbers, allocate the submission number (committing on its own), then persist the `examinations` row and all `examination_customs_form_numbers` rows in one transaction.
+
+The same captured instant feeds both the number's business-date bucket and `submitted_at`, which is stored in UTC. Agent snapshot fields always come from the submitted data, never from the `User` record. `display_order` on child rows is 1-based.
+
+`submit()` must not be called inside an existing database transaction; the generator's guard rejects that at runtime.
+
+`App\Data\ExaminationSubmissionData` is a `final readonly` DTO with a private constructor and a single `fromValidated(array): self` entry point. It resolves enum backing strings to enum instances and canonicalizes `form_type_other` / `reason_other` so stale hidden-form values cannot be persisted. It intentionally carries no `submission_no`, `user_id`, `submitted_at` or photo data.
+
+Parser, generator and database exceptions propagate unwrapped. A persistence failure rolls the examination and every child row back while the allocated submission number stays permanently consumed.
+
+Test coverage:
+
+```text
+tests/Feature/Services/ExaminationSubmissionServiceTest.php
+    guest and registered-agent submissions, snapshot independence from the
+    User profile, shorthand and mixed customs-number expansion with 1-based
+    display_order, parser rejection consuming no sequence number,
+    parent-failure and child-failure rollback with a permanently consumed
+    number, *_other canonicalization, submitted_at UTC persistence,
+    UTC/KL midnight boundary, sequential submissions
+```
+
+Those rollback tests use test-scoped `Event::listen('eloquent.creating: ...')` listeners; no production hooks or "simulate failure" arguments exist.
+
+This suite is also verified against real MySQL 8.4 via the disposable `zb_examine_test` schema:
+
+```bash
+docker compose exec \
+  -e DB_CONNECTION=mysql -e DB_HOST=db -e DB_PORT=3306 \
+  -e DB_DATABASE=zb_examine_test -e DB_USERNAME=zb_examine -e DB_PASSWORD=secret \
+  app php artisan test --filter=ExaminationSubmissionServiceTest
+```
 
 ## Runtime
 
@@ -290,22 +331,20 @@ Examine Registration System
 
 ## Next Development Stage
 
-The infrastructure baseline is complete enough to begin application-domain design.
-
-Next major work should start by defining the examination domain and existing-form fields before building the agent submission interface.
+The examination domain and its core submission pathway are implemented and tested. Next work should build the agent-facing entry point on top of the existing service.
 
 Important upcoming areas include:
 
 ```text
-Examination model
-Multiple SMK/customs form numbers
-Guest vs authenticated agent submission
-Agent profile snapshots
-Photo records
-Mobile agent form
+Livewire agent submission form
+FormRequest/Livewire validation and localized error messages
+Authentication and registered-agent profile auto-fill
+Photo records and client-side compression
 DigitalOcean Spaces integration
 Officer search/detail interface
 ```
+
+The photo workflow remains undesigned. Photos are deliberately excluded from `ExaminationSubmissionService`; how uploads are associated with an examination is a future decision, not a settled one.
 
 Do not start implementing these blindly from assumptions.
 
