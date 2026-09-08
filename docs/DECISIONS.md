@@ -351,3 +351,76 @@ The `examinations` row and all `examination_customs_form_numbers` rows are creat
 This nulling applies to those two conditional fields only. The required fields (`agent_name`, `agent_phone`, `agent_code`, `agent_company_name`, `agent_station_code`) are trimmed but never converted to `null`; their validity remains the responsibility of the validation layer.
 
 This is a persistence-layer invariant, not merely UI validation, so stale hidden-form values cannot reach the database regardless of caller. The future Livewire/FormRequest layer still enforces `required_if` rules and provides localized error messages.
+
+## D020 — Photo Upload Domain Foundation (Step 3B.1)
+
+Photos upload before an `Examination` exists. Temporary upload state lives in two new tables,
+`photo_upload_sessions` and `photo_uploads`, kept entirely separate from `examination_photos`
+(the final evidence table, unchanged, unaltered by this decision). `App\Models\PhotoUploadSession`
+and `App\Models\PhotoUpload` are the corresponding models. No HTTP endpoints, storage transport,
+or `ExaminationSubmissionService` integration exist yet — this decision covers schema/domain
+shape only.
+
+**Bearer token, never persisted in plaintext.** A session's bearer secret is generated via
+`Str::random(64)` and only its `hash('sha256', ...)` digest is stored in `token_hash` (unique).
+The raw token is returned to the caller exactly once, by the sole canonical creation path,
+`PhotoUploadSession::issue()`, and is never written to any column. This mirrors Laravel
+Sanctum's own personal-access-token pattern.
+
+**Public ULIDs are identifiers, not credentials.** Both tables carry a separate `public_id`
+(ULID, unique) for anything externally referenceable later (object paths, API payloads).
+Primary keys remain plain bigint auto-increment, consistent with every other table in this
+project — ULIDs are assigned via a `creating` model event, not Laravel's `HasUlids` trait
+(which would make the ULID the primary key).
+
+**Finalization has exactly one signal.** `photo_upload_sessions.examination_id` (nullable,
+unique, `cascadeOnDelete`) is the sole finalization signal: `NULL` = temporary/unclaimed,
+set = finalized. There is no separate `finalized_at`/`status` column — redundant with the fact
+the FK already carries unambiguously.
+
+**Upload readiness has exactly one signal.** `photo_uploads.verified_at` (nullable timestamp)
+is the sole lifecycle signal for an individual upload: `NULL` = pending/not yet server-verified,
+set = server-verified and finalization-eligible. The schema itself does not guarantee that
+`mime_type`/`file_size`/`width`/`height` are non-null or genuinely verified merely because
+`verified_at` is set — that completeness invariant is enforced by the future Step 3B.2
+server-side upload-completion verification before `verified_at` is ever written, not by a DB
+constraint. There is no `PhotoUploadStatus` enum and no `status` column — client-side states
+(`Processing`/`Uploading`/`Failed`/`Retrying`) are UI-only concepts that must not be persisted
+unless a later phase demonstrates a genuine server-side need. A removed, unfinalized upload is
+hard-deleted; there is no `removed` status.
+
+**Storage paths are immutable once assigned.** `photo_uploads.storage_path` is set once at
+upload-authorization time and never changes. No object copy/move ever happens during
+finalization — the same path a `photo_uploads` row used is the path `examination_photos` will
+reference after finalization copies only database metadata (Step 3B.2+), never the object
+itself.
+
+**The session row is the future mutex.** `photo_upload_sessions` is documented (in code and
+here) as the serialization point for every future state-changing operation on a session or its
+uploads — add/authorize, mark-verified, remove, reorder, finalize. Every such operation must
+`lockForUpdate()` this row inside a transaction before mutating anything, and no
+object-storage/network call may happen while that lock is held. No repository/helper class
+enforces this yet; it is a documented convention until Step 3B.2 introduces real call sites.
+
+**Maximum 10 photos is an application invariant, not a DB constraint.** A relational unique/
+check constraint cannot cleanly enforce "at most 10 child rows." The future rule: inside the
+session-row lock, count existing `photo_uploads` for that session and reject before inserting
+an 11th — never an unlocked count-then-insert.
+
+**`display_order` stays 1-based and index-only.** Both new tables use 1-based
+`unsignedTinyInteger display_order`, indexed but not uniquely constrained per session/
+examination — identical to the existing `examination_photos`/`examination_customs_form_numbers`
+precedent, because reorder flows need to pass through states that would transiently violate a
+strict uniqueness constraint.
+
+**Fixed, non-sliding 24-hour expiry.** `photo_upload_sessions.expires_at` is set once, 24 hours
+after creation, by the canonical `PhotoUploadSession::issue()` method, and is never extended by
+later activity. A future abandoned-cleanup command selects only
+`examination_id IS NULL AND expires_at < now()` — a finalized session can never match this
+predicate regardless of how old `expires_at` is.
+
+**Mass assignment is fully closed on both models.** `$fillable = []` on both
+`PhotoUploadSession` and `PhotoUpload` — every column is set via direct property assignment in
+a controlled domain method (`PhotoUploadSession::issue()`) or, in tests, via factories (which
+Laravel intentionally exempts from mass-assignment guarding). No controller may ever pass raw
+request input directly into `create()`/`fill()` for these models.

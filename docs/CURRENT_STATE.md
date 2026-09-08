@@ -355,6 +355,16 @@ Test coverage: `tests/Feature/ExaminationSubmissionFormTest.php` (uses `Database
 
 Photos are not implemented in this form. The Blade layout leaves a natural, currently-empty `<section data-future-section="photos">` placeholder in `examinations/create.blade.php` for the future Photo section, but no photo inputs, compression, or storage integration exist yet.
 
+## Photo Upload Domain Foundation (Step 3B.1)
+
+The overall photo-upload architecture (Step 3B) is approved and locked; this step implements only its persistence/domain foundation. Two new tables/models exist: `photo_upload_sessions` (`App\Models\PhotoUploadSession`) and `photo_uploads` (`App\Models\PhotoUpload`), entirely separate from the existing, unmodified `examination_photos` table. See D020 in docs/DECISIONS.md for the full rationale.
+
+`PhotoUploadSession::issue(): array{session: PhotoUploadSession, token: string}` is the sole canonical way a session is created: it generates a high-entropy raw bearer token, persists only its SHA-256 hash (`token_hash`), and fixes `expires_at` to 24 hours from creation. The raw token is never persisted. Both models auto-generate a non-secret `public_id` (ULID) on creation via a `creating` event — primary keys remain plain bigint auto-increment, unchanged from every other table in this project. `photo_upload_sessions.examination_id` (nullable, unique, `cascadeOnDelete`) is the sole finalization signal; `photo_uploads.verified_at` (nullable) is the sole per-upload readiness signal. There is no `PhotoUploadStatus` enum and no `status`/`finalized_at`/`removed_at` column anywhere. Both models declare `$fillable = []` — nothing is mass-assignable; all writes happen through direct property assignment in controlled domain code (or, in tests, through factories, which Laravel exempts from mass-assignment guarding).
+
+**Not yet implemented:** upload HTTP endpoints, any Storage/DigitalOcean Spaces transport, presigned URLs, HEAD verification, client-side Canvas compression, the photo UI, an abandoned-upload cleanup command, and any change to `ExaminationSubmissionService`/`ExaminationSubmissionData` to associate photos with an Examination. The session-row `lockForUpdate()` mutex and the max-10-photos invariant are documented conventions only in this step — no code enforces them yet, because no real caller exists until Step 3B.2.
+
+Test coverage: `tests/Feature/Models/PhotoUploadSessionTest.php` and `tests/Feature/Models/PhotoUploadTest.php` (both `DatabaseMigrations`) cover identity/uniqueness, the token/hash relationship, relationships and cascade deletes (including a finalized `Examination`'s deletion cascading its claimed session), nullable-until-verified metadata, the fixed 24h expiry, abandoned-vs-finalized cleanup-query scoping, and closed mass assignment.
+
 ## Next Development Stage
 
 The examination domain, its core submission pathway, and the guest-facing non-photo submission form are implemented and tested. Next work should build on top of the existing form.
@@ -369,7 +379,7 @@ Agent submission history
 Officer search/detail interface
 ```
 
-The photo workflow remains undesigned. Photos are deliberately excluded from `ExaminationSubmissionService`; how uploads are associated with an examination is a future decision, not a settled one.
+The overall photo-upload architecture is approved (see D020 and docs/DECISIONS.md) and its domain foundation (Step 3B.1) exists, but photos are still deliberately excluded from `ExaminationSubmissionService`; the HTTP/upload/storage/finalization integration is Step 3B.2+, not yet implemented.
 
 Do not start implementing these blindly from assumptions.
 
