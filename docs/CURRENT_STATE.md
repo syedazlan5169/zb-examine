@@ -365,6 +365,25 @@ The overall photo-upload architecture (Step 3B) is approved and locked; this ste
 
 Test coverage: `tests/Feature/Models/PhotoUploadSessionTest.php` and `tests/Feature/Models/PhotoUploadTest.php` (both `DatabaseMigrations`) cover identity/uniqueness, the token/hash relationship, relationships and cascade deletes (including a finalized `Examination`'s deletion cascading its claimed session), nullable-until-verified metadata, the fixed 24h expiry, abandoned-vs-finalized cleanup-query scoping, and closed mass assignment.
 
+## Photo Upload Session HTTP API + Local Storage Transport (Step 3B.2)
+
+Six JSON endpoints under the normal `web` middleware group (CSRF included, not exempted) now implement the full pre-Examination photo lifecycle against a private local disk. See D021 in docs/DECISIONS.md for the full rationale.
+
+```text
+POST   /photo-upload-sessions                                          create session
+GET    /photo-upload-sessions/{sessionPublicId}                        resume/read state
+POST   /photo-upload-sessions/{sessionPublicId}/photos                 allocate a pending photo
+POST   /photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/upload      receive JPEG bytes
+POST   /photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/complete    verify + set verified_at
+DELETE /photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}             remove
+```
+
+`App\Services\PhotoUploadSessionResolver` is the single canonical token-authentication path (`resolve()` for unlocked reads, `resolveLocked()` — mandatory inside `DB::transaction()` — for every mutation). A wrong `X-Photo-Upload-Token` and a nonexistent `public_id` are indistinguishable (`invalid_session`, 401). `App\Services\PhotoUploadService` composes the resolver with `App\Services\PhotoUploadTransport` (interface) / `App\Services\LocalPhotoUploadTransport` (the private `photo_uploads` disk, `config('zb-examine.photo_upload_disk')`) for allocate/upload/complete/remove. Metadata (`mime_type`/`file_size`/`width`/`height`) is always re-derived from the actual stored object via `exif_imagetype()`/`getimagesize()`/`Storage::size()` — never trusted from the client. `complete` is idempotent (a re-call on an already-verified photo returns its unchanged state). Removal is row-delete-then-object-delete, never the reverse. A stable `{"message": "...", "code": "..."}` JSON error contract covers nine machine-readable codes across `App\Exceptions\PhotoUploadSessionInvalid`/`App\Exceptions\PhotoUploadInvalid`, rendered centrally in `bootstrap/app.php`. Bilingual error copy lives in `lang/{ms,en}/photo_upload.php`.
+
+**Not yet implemented:** client-side Canvas compression, the mobile photo-selection/preview/progress UI, DigitalOcean Spaces/presigned PUT, `ExaminationSubmissionService`/`ExaminationPhoto` finalization, and the abandoned-session/orphan-object cleanup command (Step 3B.5).
+
+Test coverage: `tests/Feature/PhotoUploadSessionApiTest.php` and `tests/Feature/PhotoUploadApiTest.php` (both `DatabaseMigrations`, `Storage::fake('photo_uploads')`) cover session issuance/authentication/anti-enumeration, allocation and the 10-photo cap, upload/complete verification (including a genuinely corrupt-content JPEG rejected and cleaned up), idempotent duplicate completion, cross-session isolation, finalized/expired rejection on every mutating endpoint, row-before-object removal ordering, storage-delete-failure resilience, safe resume output, and a regression assertion that no `Examination`/`ExaminationPhoto` row is created by this phase.
+
 ## Next Development Stage
 
 The examination domain, its core submission pathway, and the guest-facing non-photo submission form are implemented and tested. Next work should build on top of the existing form.
@@ -379,7 +398,7 @@ Agent submission history
 Officer search/detail interface
 ```
 
-The overall photo-upload architecture is approved (see D020 and docs/DECISIONS.md) and its domain foundation (Step 3B.1) exists, but photos are still deliberately excluded from `ExaminationSubmissionService`; the HTTP/upload/storage/finalization integration is Step 3B.2+, not yet implemented.
+The overall photo-upload architecture is approved (see D020/D021 in docs/DECISIONS.md). The domain foundation (Step 3B.1) and the local upload-session HTTP API/storage transport (Step 3B.2) both exist, but photos are still deliberately excluded from `ExaminationSubmissionService`; Examination-photo finalization, client-side compression/UI, DigitalOcean Spaces, and abandoned/orphan cleanup remain future steps.
 
 Do not start implementing these blindly from assumptions.
 

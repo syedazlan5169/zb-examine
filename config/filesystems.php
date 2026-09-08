@@ -60,6 +60,19 @@ return [
             'report' => false,
         ],
 
+        // Private evidence storage for pre-Examination photo uploads (Step 3B.2).
+        // No public URL, no storage:link — never served directly by path. Root
+        // is the general private storage root (not a "photo-uploads" root) so
+        // the stored relative path's own "photo-uploads/..." prefix isn't
+        // duplicated on disk — storage_path values are unaffected either way.
+        'photo_uploads' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

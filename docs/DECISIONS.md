@@ -424,3 +424,88 @@ predicate regardless of how old `expires_at` is.
 a controlled domain method (`PhotoUploadSession::issue()`) or, in tests, via factories (which
 Laravel intentionally exempts from mass-assignment guarding). No controller may ever pass raw
 request input directly into `create()`/`fill()` for these models.
+
+## D021 — Photo Upload Session HTTP API (Step 3B.2)
+
+The upload-session lifecycle (create → allocate → upload → complete → resume → remove) is
+implemented as six JSON endpoints under the normal `web` middleware group, backed by a local
+private filesystem transport. Builds on D020's schema without altering it.
+
+**Bearer-token authentication and CSRF are separate, complementary protections.**
+`X-Photo-Upload-Token` proves ownership of one anonymous upload session regardless of cookies;
+Laravel's standard `web`-group CSRF verification is **not exempted** for these routes — it
+still defends against a cross-origin page riding an authenticated cookie session, an entirely
+different threat. `App\Services\PhotoUploadSessionResolver` is the single place token
+authentication happens: a combined `WHERE public_id = ? AND token_hash = ?` query means a
+wrong token and a nonexistent/mismatched `public_id` are indistinguishable from the outside
+(both simply match zero rows) — never a routing-layer 404 for one and an app-layer 401 for the
+other, since these routes take plain string parameters, not implicit Eloquent model binding.
+
+**`resolveLocked()` is the only entry point for mutation**, and is the mandated
+session-row-mutex: it must run inside an active `DB::transaction()`, `lockForUpdate()`s the
+parent `photo_upload_sessions` row, then re-checks expiry/finalization authoritatively. No
+mutating operation (allocate/complete's write phase/remove) ever performs a read then trusts it
+across a later lock — each re-queries fully once the lock is held. No filesystem or network
+call ever happens while that lock is held; storage-plane work (`PhotoUploadTransport::store/
+verify/delete`) always happens strictly before or after the locked section, never inside it.
+
+**Removal is row-first, object-second, never the reverse.** The `PhotoUpload` row is
+hard-deleted inside the locked transaction and committed; only afterward is the storage object
+best-effort deleted. This ordering means a concurrent finalization attempt can never observe a
+row whose physical object is mid-deletion. If the post-commit object delete fails, it's logged
+as an orphaned private object — the row is never recreated and no compensating transaction is
+attempted; an unreferenced private object is an acceptable, reconcilable state, while an
+Examination referencing deleted evidence is not. **Step 3B.5**'s future cleanup command must
+cover both ordinary expired-session sweeping and this orphaned-object reconciliation.
+
+**`complete` is idempotent by design.** A photo already `verified_at`-set returns its existing
+state unchanged on a repeat call — no metadata rewrite, no `verified_at` bump — so a client
+retrying after a lost response never causes a second write. Metadata
+(`mime_type`/`file_size`/`width`/`height`) is always re-derived from the actual stored object
+(`exif_imagetype()` for magic-byte MIME confirmation, `getimagesize()` for dimensions and a
+second MIME cross-check, real `Storage::size()` for byte size) — never trusted from the client,
+even though nothing in the request body can currently supply those fields anyway.
+
+**Stable JSON error contract:** `{"message": "...", "code": "..."}` with nine codes across two
+exception classes (`PhotoUploadSessionInvalid`: `invalid_session`/`session_expired`/
+`session_finalized`; `PhotoUploadInvalid`: `photo_limit_reached`/`invalid_photo`/
+`photo_too_large`/`photo_not_found`/`upload_not_ready`/`photo_state_conflict`), each owning its
+own HTTP status mapping, rendered centrally in `bootstrap/app.php` rather than duplicated per
+controller. `upload_not_ready` (genuinely incomplete — `complete` before any upload exists) and
+`photo_state_conflict` (a settled state being contradicted, e.g. re-uploading an already
+verified photo) are deliberately distinct codes, not one reused for both directions.
+
+**A `storage_path` object is write-once: published exactly once, never overwritten
+afterward.** An earlier version of `LocalPhotoUploadTransport::store()` used a plain
+overwrite-capable `Storage::put()`, which permitted a retried/racing `upload` call to silently
+overwrite or (via a since-removed cleanup step) delete an object a concurrent `complete()` had
+already verified — a confirmed, blocking defect closed before this decision was recorded.
+`store()` now writes a complete temporary file first, then publishes it to `storage_path` via
+`link()` — atomic with respect to destination existence on POSIX: it either creates the
+destination in one syscall or fails leaving it completely untouched, so the final path is never
+overwritten, never visible half-written, and a losing request's own temp file is the only thing
+it ever deletes. If `storage_path` already exists, the request is rejected with the existing
+`photo_state_conflict` code — no new error code was introduced. `PhotoUploadService::upload()`
+correspondingly performs **no** reconciliation/delete-on-state-change after a successful
+publish: once published, the object is preserved regardless of what happens afterward
+(concurrent `complete()`, concurrent `remove()`, session expiry/finalization racing in) — an
+unreferenced private orphan is an acceptable, Step 3B.5-reconcilable outcome; deleting evidence
+another request may have already accepted is not. **Any future transport implementation
+(including Step 3B.6's Spaces transport) must preserve this same write-once invariant** — a
+previously published object for a given `PhotoUpload` must never be overwritten.
+
+**A failed verification is not proof that a published object is safe to delete.**
+`PhotoUploadService::complete()` originally called `bestEffortDelete()` whenever
+`transport->verify()` threw — but a concurrent `complete()` request may already have
+successfully verified the exact same immutable object and captured its metadata, and could
+still commit `verified_at` for it after the failing request deletes it out from under that
+commit. `complete()` now leaves both the `PhotoUpload` row (`verified_at` stays null) and the
+storage object completely untouched on any verification failure — the request fails exactly as
+if it had never happened, and is safely retryable. Only two things may ever delete a published
+object: an explicit `remove()` (row-first under the session lock, object best-effort deleted
+only after commit) or a future Step 3B.5 reconciliation pass. This matters even more for a
+future remote transport (Step 3B.6's Spaces implementation), where verification can fail for
+purely transient transport/network reasons that say nothing about the object's own integrity —
+`bestEffortDelete()` is reserved for paths where DB ownership/reference has already been
+removed (`remove()`) or deletion is otherwise provably safe, never for a bare verification
+failure.

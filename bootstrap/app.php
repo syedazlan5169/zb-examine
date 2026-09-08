@@ -1,5 +1,8 @@
 <?php
 
+use App\Exceptions\PhotoUploadInvalid;
+use App\Exceptions\PhotoUploadSessionInvalid;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,11 +16,22 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
-            \App\Http\Middleware\SetLocale::class,
+            SetLocale::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Stable {message, code} contract for the photo-upload API (Step 3B.2).
+        $exceptions->render(fn (PhotoUploadSessionInvalid $e) => response()->json([
+            'message' => __('photo_upload.errors.'.$e->getErrorCode()),
+            'code' => $e->getErrorCode(),
+        ], $e->httpStatus()));
+
+        $exceptions->render(fn (PhotoUploadInvalid $e) => response()->json([
+            'message' => __('photo_upload.errors.'.$e->getErrorCode()),
+            'code' => $e->getErrorCode(),
+        ], $e->httpStatus()));
     })->create();
