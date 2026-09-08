@@ -197,6 +197,20 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'agent_name' => 'agent name',
+        'agent_phone' => 'agent phone number',
+        'agent_code' => 'agent code',
+        'agent_company_name' => 'agent company name',
+        'agent_station_code' => 'agent station code',
+        'location' => 'examination location',
+        'form_type' => 'form type',
+        'form_type_other' => 'other form type',
+        'customs_form_numbers' => 'customs form number',
+        'container_status' => 'container status',
+        'reason' => 'examination reason',
+        'reason_other' => 'other reason',
+        'attending_officer_type' => 'attending officer type',
+    ],
 
 ];

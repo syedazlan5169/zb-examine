@@ -1,1 +1,1 @@
-//
+import './examination-form';

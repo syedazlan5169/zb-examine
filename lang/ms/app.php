@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'name' => 'ZB Examine',
+    'name' => 'Sistem Daftar Pemeriksaan',
 
     'welcome' => 'Sistem Pendaftaran Pemeriksaan',
     'current_language' => 'Bahasa Semasa',

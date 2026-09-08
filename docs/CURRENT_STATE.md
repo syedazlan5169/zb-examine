@@ -329,18 +329,43 @@ Examine Registration System
    mysql_data      redis_data
 ```
 
+## Examination Submission Form
+
+A public, mobile-first Blade submission form exists at `/` (route `examinations.create`). Implementation is plain Blade + `App\Http\Requests\ExaminationSubmissionRequest` + `App\Http\Controllers\ExaminationController` + a small vanilla JavaScript module (`resources/js/examination-form.js`) — no Livewire, no Alpine, no new dependencies. Livewire remains uninstalled; it was deliberately not introduced for this step.
+
+Routes:
+
+```text
+GET  /                    examinations.create
+POST /examinations        examinations.store
+GET  /examinations/success examinations.success
+```
+
+The create/store routes are guest-accessible; no authentication is required to submit. If a user happens to be authenticated, `auth()->user()` is passed to `ExaminationSubmissionService::submit()`, but no login/registration screens exist yet and no profile auto-fill is implemented.
+
+`ExaminationSubmissionRequest::prepareForValidation()` converts an empty-string `reason` (as posted by a `<select>` placeholder) to `null` before validation, and nulls `form_type_other`/`reason_other` whenever their controlling field isn't `other`, ahead of the DTO's own canonicalization. Enum fields are validated with `Illuminate\Validation\Rule::enum(...)`; string length limits mirror the actual `examinations` table columns.
+
+`ExaminationController::store()` builds `ExaminationSubmissionData::fromValidated()` and calls `ExaminationSubmissionService::submit()` directly — it does not parse customs form numbers or allocate submission numbers itself. `App\Exceptions\InvalidCustomsFormNumberInput` is mapped to a localized field error on `customs_form_numbers`; `App\Exceptions\SubmissionNumberSequenceExhausted` becomes a localized form-level `submission_error`; any other `Throwable` is reported via `report()` and shown only as a safe generic localized failure message. No exception internals are ever rendered.
+
+On success, the generated `submission_no` is stored in normal (non-flash) session state (`examination_success`), so refreshing `examinations.success` keeps showing it; visiting `examinations.create` again clears that state. There is no public route containing a `submission_no`.
+
+Bilingual copy lives in `lang/{ms,en}/examination.php` (headings, field/option labels, parser-error mappings, success/failure/loading text) and a small `ms`-only subset of `lang/ms/validation.php` (only the rule keys this form actually uses — everything else falls back to `lang/en/validation.php` per key). The existing `app.name` translation key now holds the official product name (`Sistem Daftar Pemeriksaan` / `Examine Registration System`) and is reused in the shared layout instead of introducing a competing key.
+
+Test coverage: `tests/Feature/ExaminationSubmissionFormTest.php` (uses `DatabaseMigrations`, not `RefreshDatabase`, for the same reason as the Step 2G service tests) covers guest access, locale rendering, required/enum/conditional validation, the `reason=''` → `null` normalization, parser-error field mapping without consuming a submission number, shorthand parsing, guest vs. authenticated snapshot independence, the success/refresh/clear-on-new-submission session flow, sequence-exhaustion safe messaging, and unexpected-exception safe messaging (asserted via `Illuminate\Support\Facades\Exceptions::fake()`).
+
+Photos are not implemented in this form. The Blade layout leaves a natural, currently-empty `<section data-future-section="photos">` placeholder in `examinations/create.blade.php` for the future Photo section, but no photo inputs, compression, or storage integration exist yet.
+
 ## Next Development Stage
 
-The examination domain and its core submission pathway are implemented and tested. Next work should build the agent-facing entry point on top of the existing service.
+The examination domain, its core submission pathway, and the guest-facing non-photo submission form are implemented and tested. Next work should build on top of the existing form.
 
 Important upcoming areas include:
 
 ```text
-Livewire agent submission form
-FormRequest/Livewire validation and localized error messages
-Authentication and registered-agent profile auto-fill
-Photo records and client-side compression
+Photo capture, client-side compression, and examination_photos persistence
 DigitalOcean Spaces integration
+Authentication and registered-agent profile auto-fill
+Agent submission history
 Officer search/detail interface
 ```
 
