@@ -27,7 +27,13 @@ return [
     |
     */
 
+    'photo_upload_mode' => env('PHOTO_UPLOAD_MODE', 'proxy'),
+
     'photo_upload_disk' => env('PHOTO_UPLOAD_DISK', 'photo_uploads'),
+
+    'photo_upload_direct_disk' => env('PHOTO_UPLOAD_DIRECT_DISK', 'photo_uploads_spaces'),
+
+    'photo_upload_presign_ttl_seconds' => (int) env('PHOTO_UPLOAD_PRESIGN_TTL', 300),
 
     /*
     |--------------------------------------------------------------------------

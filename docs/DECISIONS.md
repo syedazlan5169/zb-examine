@@ -1,3 +1,102 @@
+## D025 - Private Spaces Staging and Sealed Evidence Architecture
+
+Step 3B.6A provides the DigitalOcean Spaces storage primitives only. Direct
+browser PUT to a final/evidence key is rejected because Spaces PUT is
+overwrite-capable and does not document the create-only precondition required by
+the evidence invariant.
+
+The approved direct architecture is:
+
+```text
+browser PUT to disposable staging object
+    -> HEAD staging
+    -> GET staging with If-Match from HEAD
+    -> authoritative JPEG validation
+    -> server-authenticated PUT of the verified temporary snapshot
+    -> fresh server-only sealed candidate
+    -> later database ownership claim (Step 3B.6B)
+    -> Examination metadata references sealed path
+```
+
+Staging keys use `photo-upload-staging/{session_public_id}/{photo_public_id}.jpg`.
+Sealed candidates use `photo-uploads/{session_public_id}/{photo_public_id}/{seal_id}.jpg`.
+The seal identifier is freshly generated with cryptographically strong randomness
+for every attempt. The browser receives authorization only for staging and never
+receives the sealed path or a sealed-key upload capability.
+
+The source ETag is an opaque conditional identity, not an MD5/content hash. The
+provider proof primitive HEADs the source, performs a conditional GET with the
+HEAD identity, and validates actual JPEG bytes through a bounded temporary file.
+The temporary file is retained as an owned verified payload until the caller
+finishes the server-authenticated PUT to the fresh sealed candidate.
+
+Real SGP1 provider testing found that Spaces accepted CopyObject with a stale
+`x-amz-copy-source-if-match` value and copied the newer source object. Therefore
+conditional CopyObject is not an evidence-integrity guard and is retired from
+the application design. The sealed candidate is now written from the exact
+validated local snapshot, never reread from staging.
+
+The complete provider-proven architecture is:
+
+```text
+browser presigned PUT
+    -> disposable staging object
+    -> HEAD
+    -> GET If-Match
+    -> authoritative byte/JPEG validation
+    -> retained frozen temporary snapshot
+    -> fresh high-entropy sealed candidate
+    -> durable candidate deletion intent
+    -> server-authenticated PUT of the exact verified snapshot
+    -> transactional ownership claim (Step 3B.6B)
+    -> Examination evidence
+```
+
+The browser can write only staging. Staging is disposable and may be overwritten.
+Sealed paths are never browser-presigned. `GET If-Match` is the snapshot
+acquisition guard; the ETag is only an opaque conditional identity, never a
+content hash. Once the verified temporary snapshot exists, later staging changes
+are irrelevant. Every sealing attempt uses a fresh high-entropy destination, and
+an uncertain sealed PUT destination is never reused.
+
+The sealed-candidate deletion intent is intentionally created after successful
+staging validation but before the server PUT. This avoids queue noise for invalid
+uploads while preserving crash safety if the server PUT succeeds before the database
+claim. Candidate ownership integration, staging-path ownership transfer,
+production authorization routing, direct client flow, and database claims remain
+deferred to Step 3B.6B.
+
+`photo_uploads` remains the existing local logical disk. The new
+`photo_uploads_spaces` disk is separate so persisted local rows in
+`photo_uploads`, `examination_photos`, and the cleanup queue are never silently
+reinterpreted as Spaces objects. The current proxy workflow and Examination
+finalization are unchanged and finalization remains storage-free.
+
+Real DigitalOcean verification was completed against Space `space-probono-apps`
+in physical region SGP1 at `https://sgp1.digitaloceanspaces.com`. The application
+uses `us-east-1` as the AWS SDK signing region, as required by this Spaces
+configuration. Presigned staging PUT, staging overwrite, HEAD, conditional GET,
+snapshot identity, and DeleteObject passed. Deleting already-absent objects also
+returned logical success.
+
+The failed CopyObject experiment uploaded A (692 bytes), overwrote staging with B
+(695 bytes), then used stale A in `CopySourceIfMatch`. Spaces accepted the copy,
+and the destination contained B (695 bytes). Conditional CopyObject is therefore
+prohibited for evidence sealing.
+
+The corrected frozen-snapshot probe then passed. Snapshot A SHA-256 was
+`6b722cb3db04ab54eee236014d2e7079975260b148197ee4611a9ca7786719ac`, staging B
+SHA-256 was
+`42d2d4c864948a5ab8f474ce762d285f159335c04ac1308c0e1e668dc687c159`, and the
+sealed object SHA-256 equaled A and did not equal B. An unauthenticated HTTPS GET
+to the sealed object returned HTTP 403, confirming that sealed objects remain
+private. Credentials remain only in local environment configuration and are not
+documented or committed.
+
+Examination finalization remains DB-only and performs zero storage calls. Step
+3B.6B, including candidate-intent integration and transactional ownership claim,
+is not implemented.
+
 ## D024 - Durable Photo Upload Cleanup
 
 Expired, unfinalized photo upload sessions are cleaned through a durable deletion-intent queue. Cleanup stages one intent per storage object and removes the session and its child rows in the same database transaction. Explicit photo removal uses the same queue, so a storage failure cannot lose the record of an object that must be deleted.

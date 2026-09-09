@@ -1,6 +1,6 @@
 # ZB Examine — Current State
 
-Last updated: 2026-09-08
+Last updated: 2026-09-09
 
 ## Project Status
 
@@ -13,6 +13,35 @@ The submission-number generator is implemented: `App\Services\SubmissionNumberGe
 The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete submission by composing the customs-form-number normalizer, the number generator, and photo finalization. See D019/D022/D023 in docs/DECISIONS.md.
 
 The real Examination form, photo integration, customs-form-number UI, and expired-session/orphan-object cleanup are implemented (Steps 3B.4 and 3B.5). Authentication/profile auto-fill has not yet been implemented.
+
+Step 3B.6A adds the private `photo_uploads_spaces` filesystem disk and isolated
+DigitalOcean Spaces primitives. The existing local `photo_uploads` disk remains
+unchanged and remains the default proxy-mode disk; persisted disk names are never
+silently remapped. The new primitives generate staging/sealed paths, create
+staging-only presigned PUT capabilities, HEAD and conditionally GET staging
+objects, validate actual JPEG bytes through temporary files, and upload the
+retained verified snapshot through a server-authenticated PUT to a fresh sealed
+candidate. The live
+photo-upload routes, PhotoUpload ownership claim, browser direct-upload flow, and
+Examination finalization are intentionally unchanged and deferred to Step 3B.6B.
+
+Real provider proof against `space-probono-apps` in SGP1 established presigned
+staging PUT, overwrite behavior, HEAD, conditional GET with `If-Match`, and
+DeleteObject, including logical success for an already-absent object. The
+configured endpoint is `https://sgp1.digitaloceanspaces.com`, with `us-east-1`
+used as the AWS SDK signing region. It also established that Spaces did not
+enforce stale `CopySourceIfMatch`: a stale conditional CopyObject copied the
+newer staging object. Conditional CopyObject is therefore prohibited for
+evidence sealing.
+
+The corrected real-provider probe proved frozen snapshot A -> staging B -> sealed
+A. Snapshot A SHA-256 was
+`6b722cb3db04ab54eee236014d2e7079975260b148197ee4611a9ca7786719ac`, staging B
+SHA-256 was
+`42d2d4c864948a5ab8f474ce762d285f159335c04ac1308c0e1e668dc687c159`, and the
+sealed object matched A rather than B. An unauthenticated HTTPS GET to the sealed
+object returned HTTP 403, proving the sealed object remained private. Credentials
+remain only in local environment configuration and were not committed.
 
 Step 3B.5 provides `photo-uploads:cleanup`, an hourly scheduled command with dry-run and batch-limit options. It stages expired unfinalized sessions into the durable cleanup queue, defers physical deletion through the configured photo transport, protects finalized evidence, and integrates explicit photo removal with the same queue. Historical storage orphans from before this queue existed are intentionally outside the scope of this implementation because the application has no authoritative filesystem inventory.
 

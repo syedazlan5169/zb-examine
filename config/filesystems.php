@@ -73,6 +73,20 @@ return [
             'report' => false,
         ],
 
+        // Private DigitalOcean Spaces storage for the future direct-upload
+        // path. Existing photo_uploads rows never use this disk implicitly.
+        'photo_uploads_spaces' => [
+            'driver' => 's3',
+            'key' => env('DO_SPACES_KEY'),
+            'secret' => env('DO_SPACES_SECRET'),
+            'region' => env('DO_SPACES_REGION'),
+            'bucket' => env('DO_SPACES_BUCKET'),
+            'endpoint' => env('DO_SPACES_ENDPOINT'),
+            'use_path_style_endpoint' => env('DO_SPACES_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => true,
+            'report' => false,
+        ],
+
     ],
 
     /*
