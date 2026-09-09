@@ -12,7 +12,9 @@ The submission-number generator is implemented: `App\Services\SubmissionNumberGe
 
 The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete submission by composing the customs-form-number normalizer, the number generator, and photo finalization. See D019/D022/D023 in docs/DECISIONS.md.
 
-The real Examination form, photo integration, and customs-form-number UI are implemented (Step 3B.4). Authentication/profile auto-fill has not yet been implemented.
+The real Examination form, photo integration, customs-form-number UI, and expired-session/orphan-object cleanup are implemented (Steps 3B.4 and 3B.5). Authentication/profile auto-fill has not yet been implemented.
+
+Step 3B.5 provides `photo-uploads:cleanup`, an hourly scheduled command with dry-run and batch-limit options. It stages expired unfinalized sessions into the durable cleanup queue, defers physical deletion through the configured photo transport, protects finalized evidence, and integrates explicit photo removal with the same queue. Historical storage orphans from before this queue existed are intentionally outside the scope of this implementation because the application has no authoritative filesystem inventory.
 
 `App\Services\CustomsFormNumberNormalizer` (D023) replaces the retired `CustomsFormNumberParser`. It accepts free-form, opaque customs form numbers (no `B`+11-digit syntax, no shorthand expansion), trims each value, rejects empty/oversized/duplicate (case-insensitive) values, and preserves input order — covered by dedicated unit tests.
 
@@ -378,9 +380,9 @@ POST   /photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/complete 
 DELETE /photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}             remove
 ```
 
-`App\Services\PhotoUploadSessionResolver` is the single canonical token-authentication path (`resolve()` for unlocked reads, `resolveLocked()` — mandatory inside `DB::transaction()` — for every mutation). A wrong `X-Photo-Upload-Token` and a nonexistent `public_id` are indistinguishable (`invalid_session`, 401). `App\Services\PhotoUploadService` composes the resolver with `App\Services\PhotoUploadTransport` (interface) / `App\Services\LocalPhotoUploadTransport` (the private `photo_uploads` disk, `config('zb-examine.photo_upload_disk')`) for allocate/upload/complete/remove. Metadata (`mime_type`/`file_size`/`width`/`height`) is always re-derived from the actual stored object via `exif_imagetype()`/`getimagesize()`/`Storage::size()` — never trusted from the client. `complete` is idempotent (a re-call on an already-verified photo returns its unchanged state). Removal is row-delete-then-object-delete, never the reverse. A stable `{"message": "...", "code": "..."}` JSON error contract covers nine machine-readable codes across `App\Exceptions\PhotoUploadSessionInvalid`/`App\Exceptions\PhotoUploadInvalid`, rendered centrally in `bootstrap/app.php`. Bilingual error copy lives in `lang/{ms,en}/photo_upload.php`.
+`App\Services\PhotoUploadSessionResolver` is the single canonical token-authentication path (`resolve()` for unlocked reads, `resolveLocked()` — mandatory inside `DB::transaction()` — for every mutation). A wrong `X-Photo-Upload-Token` and a nonexistent `public_id` are indistinguishable (`invalid_session`, 401). `App\Services\PhotoUploadService` composes the resolver with `App\Services\PhotoUploadTransport` (interface) / `App\Services\LocalPhotoUploadTransport` (the private `photo_uploads` disk, `config('zb-examine.photo_upload_disk')`) for allocate/upload/complete/remove. Metadata (`mime_type`/`file_size`/`width`/`height`) is always re-derived from the actual stored object via `exif_imagetype()`/`getimagesize()`/`Storage::size()` — never trusted from the client. `complete` is idempotent (a re-call on an already-verified photo returns its unchanged state). Explicit removal stages a durable deletion intent transactionally and defers physical deletion until the cleanup queue's one-hour settling window. A stable `{"message": "...", "code": "..."}` JSON error contract covers nine machine-readable codes across `App\Exceptions\PhotoUploadSessionInvalid`/`App\Exceptions\PhotoUploadInvalid`, rendered centrally in `bootstrap/app.php`. Bilingual error copy lives in `lang/{ms,en}/photo_upload.php`.
 
-**Not yet implemented:** client-side Canvas compression, the mobile photo-selection/preview/progress UI, DigitalOcean Spaces/presigned PUT, `ExaminationSubmissionService`/`ExaminationPhoto` finalization, and the abandoned-session/orphan-object cleanup command (Step 3B.5).
+**Not yet implemented:** client-side Canvas compression, the mobile photo-selection/preview/progress UI, and DigitalOcean Spaces/presigned PUT. Examination finalization and Step 3B.5 durable cleanup are implemented; finalized-photo pruning remains intentionally out of scope.
 
 Test coverage: `tests/Feature/PhotoUploadSessionApiTest.php` and `tests/Feature/PhotoUploadApiTest.php` (both `DatabaseMigrations`, `Storage::fake('photo_uploads')`) cover session issuance/authentication/anti-enumeration, allocation and the 10-photo cap, upload/complete verification (including a genuinely corrupt-content JPEG rejected and cleaned up), idempotent duplicate completion, cross-session isolation, finalized/expired rejection on every mutating endpoint, row-before-object removal ordering, storage-delete-failure resilience, safe resume output, and a regression assertion that no `Examination`/`ExaminationPhoto` row is created by this phase.
 
@@ -467,7 +469,6 @@ The examination domain, its core submission pathway, and the full guest-facing p
 Important upcoming areas include:
 
 ```text
-Step 3B.5: abandoned-session/orphaned-object cleanup, PhotoUpload row pruning after finalization
 DigitalOcean Spaces integration
 Authenticated private photo preview retrieval (signed/private URLs)
 Authentication and registered-agent profile auto-fill
@@ -475,7 +476,7 @@ Agent submission history
 Officer search/detail interface
 ```
 
-The overall photo-upload architecture is approved and now fully integrated end-to-end (see D020/D021/D022 in docs/DECISIONS.md). Photo capture, compression, upload, and atomic Examination finalization all exist and are tested. Remaining photo-adjacent work is limited to cleanup (Step 3B.5), DigitalOcean Spaces, and authorized private preview retrieval.
+The overall photo-upload architecture is approved and now fully integrated end-to-end (see D020/D021/D022/D024 in docs/DECISIONS.md). Photo capture, upload, atomic Examination finalization, and durable Step 3B.5 cleanup all exist and are tested. Remaining photo-adjacent work is limited to DigitalOcean Spaces, authorized private preview retrieval, and the separate future policy for pruning finalized upload metadata.
 
 Do not start implementing these blindly from assumptions.
 

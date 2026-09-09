@@ -97,6 +97,15 @@ final class LocalPhotoUploadTransport implements PhotoUploadTransport
         $this->disk($upload)->delete($upload->storage_path);
     }
 
+    public function deleteByPath(string $storageDisk, string $storagePath): void
+    {
+        // Normal return means logical success, including an absent object.
+        // A false result is an operational failure and must keep the queue row.
+        if (! Storage::disk($storageDisk)->delete($storagePath)) {
+            throw new \RuntimeException('Storage delete returned false.');
+        }
+    }
+
     private function absolutePath(PhotoUpload $upload): string
     {
         return $this->disk($upload)->path($upload->storage_path);

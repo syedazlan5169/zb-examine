@@ -10,16 +10,16 @@ use App\Exceptions\PhotoUploadInvalid;
 use App\Models\Examination;
 use App\Models\ExaminationPhoto;
 use App\Models\PhotoUpload;
+use App\Models\PhotoUploadCleanupQueue;
 use App\Models\PhotoUploadSession;
 use App\Services\LocalPhotoUploadTransport;
+use App\Services\PhotoUploadCleanupService;
 use App\Services\PhotoUploadService;
 use App\Services\PhotoUploadSessionResolver;
 use App\Services\PhotoUploadTransport;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Storage;
-use RuntimeException;
 use Tests\TestCase;
 
 class PhotoUploadApiTest extends TestCase
@@ -220,12 +220,13 @@ class PhotoUploadApiTest extends TestCase
         $this->assertNull(PhotoUpload::where('public_id', $photoPublicId)->firstOrFail()->verified_at);
         Storage::disk('photo_uploads')->assertExists("photo-uploads/{$publicId}/{$photoPublicId}.jpg");
 
-        // Only an explicit remove cleans up both, row-first then object.
+        // Only an explicit remove creates the durable cleanup intent.
         $this->deleteJson("/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}", [], $this->authHeader($token))
             ->assertNoContent();
 
         $this->assertDatabaseMissing('photo_uploads', ['public_id' => $photoPublicId]);
-        Storage::disk('photo_uploads')->assertMissing("photo-uploads/{$publicId}/{$photoPublicId}.jpg");
+        $this->assertDatabaseHas('photo_upload_cleanup_queue', ['source_session_public_id' => $publicId]);
+        Storage::disk('photo_uploads')->assertExists("photo-uploads/{$publicId}/{$photoPublicId}.jpg");
     }
 
     public function test_a_transient_verification_failure_never_destroys_a_recoverable_object(): void
@@ -252,6 +253,8 @@ class PhotoUploadApiTest extends TestCase
             }
 
             public function delete(PhotoUpload $upload): void {}
+
+            public function deleteByPath(string $storageDisk, string $storagePath): void {}
         };
 
         $serviceWithFailingTransport = new PhotoUploadService(app(PhotoUploadSessionResolver::class), $failingTransport);
@@ -473,7 +476,13 @@ class PhotoUploadApiTest extends TestCase
             ->assertNoContent();
 
         $this->assertDatabaseMissing('photo_uploads', ['public_id' => $photoPublicId]);
-        Storage::disk('photo_uploads')->assertMissing("photo-uploads/{$publicId}/{$photoPublicId}.jpg");
+
+        $storagePath = "photo-uploads/{$publicId}/{$photoPublicId}.jpg";
+        PhotoUploadCleanupQueue::where('storage_path', $storagePath)
+            ->update(['delete_after' => now()->subMinute()]);
+        app(PhotoUploadCleanupService::class)->processQueueUntilSettled(now: now());
+
+        Storage::disk('photo_uploads')->assertMissing($storagePath);
     }
 
     public function test_removing_a_foreign_photo_is_rejected(): void
@@ -516,7 +525,7 @@ class PhotoUploadApiTest extends TestCase
         $response->assertJson(['code' => 'session_expired']);
     }
 
-    public function test_storage_deletion_failure_does_not_fail_the_request_or_recreate_the_row(): void
+    public function test_explicit_remove_queues_storage_deletion_without_failing_the_request(): void
     {
         $this->app->bind(PhotoUploadTransport::class, fn () => new class implements PhotoUploadTransport
         {
@@ -531,18 +540,21 @@ class PhotoUploadApiTest extends TestCase
             {
                 throw new RuntimeException('simulated storage failure');
             }
+
+            public function deleteByPath(string $storageDisk, string $storagePath): void
+            {
+                throw new \RuntimeException('simulated storage failure');
+            }
         });
 
         [$publicId, $token] = $this->createSession();
         $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
 
-        Exceptions::fake();
-
         $response = $this->deleteJson("/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}", [], $this->authHeader($token));
 
         $response->assertNoContent();
         $this->assertDatabaseMissing('photo_uploads', ['public_id' => $photoPublicId]);
-        Exceptions::assertReported(RuntimeException::class);
+        $this->assertDatabaseCount('photo_upload_cleanup_queue', 1);
     }
 
     // ----- resume -----

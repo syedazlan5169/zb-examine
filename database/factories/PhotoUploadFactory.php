@@ -39,4 +39,11 @@ class PhotoUploadFactory extends Factory
             'verified_at' => null,
         ]);
     }
+
+    public function verified(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'verified_at' => now(),
+        ]);
+    }
 }

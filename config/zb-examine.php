@@ -29,4 +29,25 @@ return [
 
     'photo_upload_disk' => env('PHOTO_UPLOAD_DISK', 'photo_uploads'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Photo Upload Cleanup Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Settling window: duration (seconds) before an authorized-for-deletion
+    | intent becomes eligible for physical storage deletion. Allows in-flight
+    | upload requests to complete before authoritative object removal,
+    | preventing late-publication race conditions.
+    |
+    | Session batch: maximum expired sessions to stage per cleanup run.
+    | Queue batch: maximum queued objects to process per cleanup run.
+    |
+    */
+
+    'photo_cleanup_settle_seconds' => (int) env('PHOTO_CLEANUP_SETTLE_SECONDS', 3600),
+
+    'photo_cleanup_session_limit' => (int) env('PHOTO_CLEANUP_SESSION_LIMIT', 100),
+
+    'photo_cleanup_queue_limit' => (int) env('PHOTO_CLEANUP_QUEUE_LIMIT', 500),
+
 ];

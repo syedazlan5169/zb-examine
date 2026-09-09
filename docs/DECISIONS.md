@@ -1,3 +1,11 @@
+## D024 - Durable Photo Upload Cleanup
+
+Expired, unfinalized photo upload sessions are cleaned through a durable deletion-intent queue. Cleanup stages one intent per storage object and removes the session and its child rows in the same database transaction. Explicit photo removal uses the same queue, so a storage failure cannot lose the record of an object that must be deleted.
+
+Physical deletion is delayed by `photo_cleanup_settle_seconds` (one hour by default). This settling window protects uploads that were already in flight when database ownership was removed. Queue rows are processed oldest-first and remain available for retry when storage deletion fails. Duplicate intents are prevented by a unique `(storage_disk, storage_path)` constraint and never shorten an existing settling deadline.
+
+Before every physical deletion, cleanup checks `examination_photos` for finalized evidence referencing the same disk and path. An integrity conflict blocks deletion and leaves the intent unresolved for investigation. Storage calls are performed after database transactions and locks have ended. The scheduler runs the command hourly with `withoutOverlapping()` as an operational optimization; correctness still depends on database uniqueness and row locking, not scheduler exclusivity.
+
 # ZB Examine — Architecture Decisions
 
 This document records important decisions that should not be casually changed by future development sessions or AI agents without understanding the reason behind them.

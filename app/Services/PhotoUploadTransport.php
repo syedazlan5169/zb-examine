@@ -7,7 +7,7 @@ use Illuminate\Http\UploadedFile;
 
 /**
  * Storage-plane operations only. A future SpacesPhotoUploadTransport (Step
- * 3B.6) implements the same three methods against Spaces HEAD/PUT semantics.
+ * 3B.6) implements the same operations against Spaces HEAD/PUT semantics.
  */
 interface PhotoUploadTransport
 {
@@ -26,4 +26,14 @@ interface PhotoUploadTransport
     public function verify(PhotoUpload $upload): array;
 
     public function delete(PhotoUpload $upload): void;
+
+    /**
+     * Delete by storage location (used by cleanup queue processor).
+     *
+     * Idempotent: success and already-absent are both logical success outcomes.
+     * Implementations MUST return normally for logical success and MUST throw
+     * for operational failure. No PhotoUpload model is needed because the DB
+     * ownership row may already have been deleted.
+     */
+    public function deleteByPath(string $storageDisk, string $storagePath): void;
 }

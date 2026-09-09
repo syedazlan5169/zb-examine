@@ -8,7 +8,6 @@ use App\Models\PhotoUploadSession;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Throwable;
 
 final class PhotoUploadService
 {
@@ -111,20 +110,39 @@ final class PhotoUploadService
         });
     }
 
-    /** Row deleted first, storage object deleted only after commit \u2014 never the reverse. */
+    /**
+     * Remove an existing photo upload.
+     *
+     * Updated in Step 3B.5: now creates durable deletion intent inside DB transaction
+     * before removing row ownership. This ensures no orphan loss if storage delete fails.
+     *
+     * Physical storage deletion is deferred to queue processor at/after settle time.
+     * No storage call occurs in this request.
+     */
     public function remove(string $sessionPublicId, string $token, string $photoPublicId): void
     {
-        $upload = null;
-
-        DB::transaction(function () use ($sessionPublicId, $token, $photoPublicId, &$upload): void {
+        DB::transaction(function () use ($sessionPublicId, $token, $photoPublicId): void {
             $session = $this->sessions->resolveLocked($sessionPublicId, $token);
 
             $upload = $this->findOwned($session, $photoPublicId);
 
+            // Create durable deletion intent before removing DB ownership
+            $settleWindow = (int) config('zb-examine.photo_cleanup_settle_seconds', 3600);
+            $deleteAfter = now()->addSeconds($settleWindow);
+
+            app(PhotoUploadCleanupService::class)->stageDeletionIntent(
+                $upload->storage_disk,
+                $upload->storage_path,
+                $session->public_id,
+                $deleteAfter,
+            );
+
+            // Now safe to delete row; intent is durable
             $upload->delete();
         });
 
-        $this->bestEffortDelete($upload);
+        // Physical deletion deferred to queue processor at/after settle time
+        // No storage call here; no bestEffortDelete
     }
 
     private function findOwned(PhotoUploadSession $session, string $photoPublicId): PhotoUpload
@@ -151,14 +169,5 @@ final class PhotoUploadService
         }
 
         return $upload;
-    }
-
-    private function bestEffortDelete(PhotoUpload $upload): void
-    {
-        try {
-            $this->transport->delete($upload);
-        } catch (Throwable $e) {
-            report($e);
-        }
     }
 }
