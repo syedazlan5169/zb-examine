@@ -12,6 +12,8 @@ return [
         'photo_not_found' => 'That photo could not be found.',
         'upload_not_ready' => 'That photo has not finished uploading yet.',
         'photo_state_conflict' => 'That action is not possible for this photo right now.',
+        'photo_count_invalid' => 'Please upload between 1 and 10 photos.',
+        'unverified_photo_pending' => 'Please wait for all photos to finish uploading before submitting.',
     ],
 
 ];

@@ -17,6 +17,9 @@ final class PhotoUploadInvalid extends RuntimeException
         // Wrong direction: an operation conflicts with an already-settled state
         // (e.g. re-uploading a photo that's already verified).
         'photo_state_conflict' => 409,
+        // Step 3B.4 finalization-only checks, re-verified authoritatively under the session lock.
+        'photo_count_invalid' => 422,
+        'unverified_photo_pending' => 422,
     ];
 
     public function __construct(private readonly string $errorCode)

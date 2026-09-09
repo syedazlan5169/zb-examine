@@ -7,7 +7,7 @@ return [
     'current_language' => 'Current Language',
 
     'language' => [
-        'malay' => 'Bahasa Melayu',
-        'english' => 'English',
+        'malay' => 'MY',
+        'english' => 'EN',
     ],
 ];

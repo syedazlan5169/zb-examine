@@ -24,6 +24,11 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
 
+        // Covers only the automatic ValidationException redirect path (merges with
+        // Laravel's own defaults). Manual back()->withInput() calls in
+        // ExaminationController are not covered by this and sanitize separately.
+        $exceptions->dontFlash(['photo_upload_token']);
+
         // Stable {message, code} contract for the photo-upload API (Step 3B.2).
         $exceptions->render(fn (PhotoUploadSessionInvalid $e) => response()->json([
             'message' => __('photo_upload.errors.'.$e->getErrorCode()),

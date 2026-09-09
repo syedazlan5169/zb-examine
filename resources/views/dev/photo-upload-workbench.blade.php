@@ -19,6 +19,7 @@
             'working' => __('photo_upload_workbench.working'),
             'photoLabel' => __('photo_upload_workbench.photo_label'),
             'sessionReset' => __('photo_upload_workbench.session_reset'),
+            'sessionFinalized' => __('photo_upload_workbench.session_finalized'),
             'maxReached' => __('photo_upload_workbench.max_reached'),
             'extrasIgnored' => __('photo_upload_workbench.extras_ignored'),
             'genericError' => __('photo_upload_workbench.generic_error'),

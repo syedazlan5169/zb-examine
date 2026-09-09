@@ -207,6 +207,7 @@ return [
         'form_type' => 'form type',
         'form_type_other' => 'other form type',
         'customs_form_numbers' => 'customs form number',
+        'customs_form_numbers.*' => 'customs form number',
         'container_status' => 'container status',
         'reason' => 'examination reason',
         'reason_other' => 'other reason',

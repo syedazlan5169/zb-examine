@@ -95,24 +95,11 @@ Examination
     +-- ...
 ```
 
-Each complete customs form number is stored as an individual indexed database record.
-
-The frontend may later support shorthand input such as:
-
-```text
-B18112068450,51,52,53
-```
-
-while the backend stores:
-
-```text
-B18112068450
-B18112068451
-B18112068452
-B18112068453
-```
-
-The exact frontend parsing and entry UX will be refined separately.
+Each complete customs form number is entered separately and stored as an
+individual indexed database record. Values are opaque and free-form: the
+application trims surrounding whitespace, preserves casing, rejects empty or
+overlong values, and enforces case-insensitive uniqueness within an
+examination. No customs-form syntax or shorthand expansion is performed.
 
 ## Submission Number
 

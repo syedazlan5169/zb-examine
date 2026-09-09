@@ -1,10 +1,7 @@
 <?php
 
 return [
-    'title' => 'Papan Ujian Muat Naik Gambar',
-    'subtitle' => 'Permukaan ujian tempatan untuk aliran foto mudah alih. Borang Pemeriksaan sebenar masih belum berubah.',
-    'warning_title' => 'Pembangunan sahaja:',
-    'warning_text' => 'Workbench ini menguji API muat naik sebenar tanpa mengintegrasikan gambar ke dalam sebarang penyerahan Pemeriksaan.',
+    'section_title' => 'Gambar',
     'take_photo' => 'Ambil Gambar',
     'choose_existing' => 'Pilih Gambar Sedia Ada',
     'count_label' => 'gambar',
@@ -24,10 +21,7 @@ return [
     'extras_ignored' => 'Beberapa gambar tidak ditambah kerana had telah tercapai.',
     'generic_error' => 'Gambar itu tidak dapat diproses. Sila cuba semula.',
     'retry_later' => 'Gambar tidak dapat diselesaikan. Sila cuba sebentar lagi.',
-    'original_label' => 'Asal',
-    'optimized_label' => 'Dioptimumkan',
-    'stage_label' => 'Peringkat',
-    'slow_test_mode' => 'Mod ujian perlahan (pembangunan sahaja)',
+    'not_ready' => 'Pastikan semua foto selesai dimuat naik sebelum menghantar.',
     'state' => [
         'queued' => 'Dalam Baris',
         'processing' => 'Memproses',

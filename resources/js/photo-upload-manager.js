@@ -1,7 +1,7 @@
 import { allocatePhoto, completePhoto, createSession, deletePhoto, readSession, uploadPhoto } from './photo-upload-api.js';
 import { optimizeImage } from './image-optimizer.js';
 
-const STORAGE_KEY = 'zb-examine.photo-upload-session.v1';
+export const STORAGE_KEY = 'zb-examine.photo-upload-session.v1';
 const MAX_PHOTOS = 10;
 const MAX_CONCURRENT = 2;
 
@@ -257,6 +257,7 @@ export class PhotoUploadManager {
 
         const actions = this.renderActions(photo);
         const stateText = stateLabel(photo.state, this.config) || photo.state;
+        const showDiagnostics = this.config.showDiagnostics !== false;
 
         return `
             <div class="flex gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -269,11 +270,13 @@ export class PhotoUploadManager {
                         </div>
                         <button type="button" data-action="remove-photo" data-photo-id="${photo.id}" class="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700">${this.config.messages?.remove || 'Remove'}</button>
                     </div>
+                    ${showDiagnostics ? `
                     <div class="mt-2 space-y-1 text-[11px] text-gray-600">
                         ${detail.length ? `<div><span class="font-semibold">${this.config.messages?.originalLabel || 'Original'}:</span> ${detail.join(' · ')}</div>` : ''}
                         ${optimizedDetail.length ? `<div><span class="font-semibold">${this.config.messages?.optimizedLabel || 'Optimized'}:</span> ${optimizedDetail.join(' · ')}</div>` : ''}
                         ${!detail.length && !optimizedDetail.length ? '<div>Waiting</div>' : ''}
                     </div>
+                    ` : ''}
                     ${actions}
                 </div>
             </div>
@@ -656,6 +659,14 @@ export class PhotoUploadManager {
 
         try {
             const response = await readSession(storedSession.public_id, storedSession.token);
+
+            if (response.finalized) {
+                // Server already claimed this session for an Examination: never present it as submit-ready again.
+                this.clearSessionStorage();
+                this.setMessage(this.config.messages?.sessionFinalized || 'This photo session has already been used.');
+                return;
+            }
+
             this.session = {
                 public_id: response.public_id,
                 token: storedSession.token,

@@ -1,10 +1,7 @@
 <?php
 
 return [
-    'title' => 'Photo Upload Workbench',
-    'subtitle' => 'Local testing surface for the mobile photo workflow. The real Examination form remains unchanged.',
-    'warning_title' => 'Development only:',
-    'warning_text' => 'This workbench exercises the production upload API without integrating the photos into any Examination submission.',
+    'section_title' => 'Photos',
     'take_photo' => 'Take Photo',
     'choose_existing' => 'Choose Existing Photo',
     'count_label' => 'photos',
@@ -24,10 +21,7 @@ return [
     'extras_ignored' => 'Some photos were not added because the limit was reached.',
     'generic_error' => 'The photo could not be processed. Please retry.',
     'retry_later' => 'The photo could not be completed. Please retry later.',
-    'original_label' => 'Original',
-    'optimized_label' => 'Optimized',
-    'stage_label' => 'Stage',
-    'slow_test_mode' => 'Slow test mode (dev only)',
+    'not_ready' => 'Make sure all photos are uploaded before submitting.',
     'state' => [
         'queued' => 'Queued',
         'processing' => 'Processing',

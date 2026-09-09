@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Data\ExaminationSubmissionData;
+use App\Data\PhotoUploadSessionCredentials;
 use App\Exceptions\InvalidCustomsFormNumberInput;
+use App\Exceptions\PhotoUploadInvalid;
+use App\Exceptions\PhotoUploadSessionInvalid;
 use App\Exceptions\SubmissionNumberAllocationInsideTransaction;
 use App\Exceptions\SubmissionNumberSequenceExhausted;
 use App\Models\Examination;
@@ -15,24 +18,29 @@ use Illuminate\Support\Facades\DB;
 final class ExaminationSubmissionService
 {
     public function __construct(
-        private readonly CustomsFormNumberParser $parser,
+        private readonly CustomsFormNumberNormalizer $normalizer,
         private readonly SubmissionNumberGenerator $submissionNumbers,
+        private readonly PhotoUploadSessionFinalizer $photoFinalizer,
     ) {}
 
     /**
-     * Create one complete non-photo examination submission.
+     * Create one complete examination submission, atomically finalizing 1-10
+     * already-verified photos alongside it.
      *
      * Must not be called while a database transaction is already active: the
      * submission number is allocated and committed before the examination is
      * persisted, so that an allocated number stays permanently consumed even
-     * when persistence subsequently fails (see D018/D019).
+     * when persistence subsequently fails (see D018/D019/D022).
      *
      * @throws InvalidCustomsFormNumberInput
      * @throws SubmissionNumberAllocationInsideTransaction
      * @throws SubmissionNumberSequenceExhausted
+     * @throws PhotoUploadSessionInvalid
+     * @throws PhotoUploadInvalid
      */
     public function submit(
         ExaminationSubmissionData $data,
+        PhotoUploadSessionCredentials $photoCredentials,
         ?User $user = null,
         ?CarbonInterface $instant = null,
     ): Examination {
@@ -42,11 +50,19 @@ final class ExaminationSubmissionService
             : CarbonImmutable::now('UTC');
 
         // Parse before allocating: invalid input must not consume a submission number.
-        $numbers = $this->parser->parse($data->customsFormNumbersInput);
+        $numbers = $this->normalizer->normalize($data->customsFormNumbers);
+
+        // Unlocked, fast optimization only: never authoritative (see D022). Lets an
+        // obviously-invalid photo session fail before a submission number is spent.
+        $this->photoFinalizer->precheck($photoCredentials);
 
         $submissionNo = $this->submissionNumbers->generate($submittedAt);
 
-        return DB::transaction(function () use ($data, $user, $submissionNo, $submittedAt, $numbers) {
+        return DB::transaction(function () use ($data, $photoCredentials, $user, $submissionNo, $submittedAt, $numbers) {
+            // Parent-row lock first: the mandated serialization mutex for every
+            // photo-session mutation, including finalization (see D021/D022).
+            $lockedSession = $this->photoFinalizer->lock($photoCredentials);
+
             $examination = Examination::create([
                 'submission_no' => $submissionNo,
                 'user_id' => $user?->id,
@@ -81,6 +97,8 @@ final class ExaminationSubmissionService
             }
 
             $examination->customsFormNumbers()->createMany($rows);
+
+            $this->photoFinalizer->attachPhotos($examination, $lockedSession);
 
             return $examination;
         });

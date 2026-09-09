@@ -8,6 +8,8 @@ use App\Enums\ExaminationLocation;
 use App\Enums\FormType;
 use App\Models\Examination;
 use App\Models\ExaminationCustomsFormNumber;
+use App\Models\PhotoUpload;
+use App\Models\PhotoUploadSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -26,6 +28,36 @@ class ExaminationSubmissionFormTest extends TestCase
     public function test_guest_can_view_the_form(): void
     {
         $this->get('/')->assertOk();
+    }
+
+    public function test_lampiran_a_uses_the_exact_malay_term_in_both_locales(): void
+    {
+        $this->get('/')->assertOk()->assertSee('Lampiran A (Tarik Balik)', false);
+
+        $this->get('/language/en');
+        $this->get('/')->assertOk()->assertSee('Lampiran A (Tarik Balik)', false);
+
+        $this->assertStringNotContainsString('Attachment A', $this->get('/')->getContent());
+    }
+
+    public function test_locale_switcher_is_compact_my_en(): void
+    {
+        $response = $this->get('/');
+
+        $response->assertOk()->assertSee('MY', false)->assertSee('EN', false);
+        $response->assertDontSee('Bahasa Melayu');
+    }
+
+    public function test_real_form_renders_one_repeatable_customs_form_number_input_initially(): void
+    {
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('name="customs_form_numbers[]"', false);
+        $response->assertSee('id="customs-form-numbers-add"', false);
+
+        $content = $response->getContent();
+        $this->assertSame(1, substr_count($content, 'data-role="customs-form-number-row"'));
     }
 
     public function test_malay_is_default_and_uses_the_official_product_name(): void
@@ -203,10 +235,10 @@ class ExaminationSubmissionFormTest extends TestCase
         $this->assertSame('AGT-001', $persisted->agent_code);
     }
 
-    public function test_shorthand_customs_form_numbers_succeed(): void
+    public function test_multiple_free_form_customs_form_numbers_succeed(): void
     {
         $this->post('/examinations', $this->validPayload([
-            'customs_form_numbers' => 'B18112068450,51,52',
+            'customs_form_numbers' => ['B18112068450', 'ABC/2026/123', 'K8-123456'],
         ]))->assertSessionDoesntHaveErrors();
 
         $examination = Examination::firstOrFail();
@@ -216,16 +248,32 @@ class ExaminationSubmissionFormTest extends TestCase
             ->pluck('number')
             ->all();
 
-        $this->assertSame(['B18112068450', 'B18112068451', 'B18112068452'], $numbers);
+        $this->assertSame(['B18112068450', 'ABC/2026/123', 'K8-123456'], $numbers);
     }
 
-    public function test_invalid_customs_form_number_syntax_becomes_a_field_error_and_consumes_no_submission_number(): void
+    public function test_legacy_shorthand_is_no_longer_expanded(): void
+    {
+        $this->post('/examinations', $this->validPayload([
+            'customs_form_numbers' => ['B18112068450,51,52'],
+        ]))->assertSessionDoesntHaveErrors();
+
+        $examination = Examination::firstOrFail();
+
+        $numbers = ExaminationCustomsFormNumber::where('examination_id', $examination->getKey())
+            ->pluck('number')
+            ->all();
+
+        // The entire comma-separated string is stored as one opaque literal value.
+        $this->assertSame(['B18112068450,51,52'], $numbers);
+    }
+
+    public function test_duplicate_customs_form_numbers_become_a_field_error_and_consume_no_submission_number(): void
     {
         $response = $this->post('/examinations', $this->validPayload([
-            'customs_form_numbers' => 'B18112068450,50',
+            'customs_form_numbers' => ['B18112068450', 'b18112068450'],
         ]));
 
-        $response->assertSessionHasErrors(['customs_form_numbers']);
+        $response->assertSessionHasErrors(['customs_form_numbers.1']);
         $this->assertSame(0, Examination::count());
 
         // Old input (aside from the rejected field) is preserved for the next render.
@@ -234,8 +282,33 @@ class ExaminationSubmissionFormTest extends TestCase
         $this->assertSame(
             0,
             DB::table('submission_sequences')->count(),
-            'An invalid parser input must not consume/create a sequence row.'
+            'An invalid customs-number collection must not consume/create a sequence row.'
         );
+    }
+
+    public function test_empty_customs_form_number_row_is_rejected_not_silently_discarded(): void
+    {
+        $response = $this->post('/examinations', $this->validPayload([
+            'customs_form_numbers' => ['B18112068450', '   '],
+        ]));
+
+        $response->assertSessionHasErrors(['customs_form_numbers.1']);
+        $this->assertSame(0, Examination::count());
+    }
+
+    public function test_old_input_reconstructs_multiple_customs_form_number_rows_after_validation_failure(): void
+    {
+        $response = $this->post('/examinations', $this->validPayload([
+            'agent_name' => '',
+            'customs_form_numbers' => ['AAA', 'BBB', 'CCC'],
+        ]));
+
+        $response->assertSessionHasErrors(['agent_name']);
+
+        $this->get('/')
+            ->assertSee('value="AAA"', false)
+            ->assertSee('value="BBB"', false)
+            ->assertSee('value="CCC"', false);
     }
 
     public function test_sequence_exhaustion_shows_a_safe_localized_form_level_error(): void
@@ -304,9 +377,29 @@ class ExaminationSubmissionFormTest extends TestCase
             'agent_station_code' => 'STN-01',
             'location' => ExaminationLocation::ContainerGateTerminal->value,
             'form_type' => FormType::K1->value,
-            'customs_form_numbers' => 'B18112068450',
+            'customs_form_numbers' => ['B18112068450'],
             'container_status' => ContainerStatus::Fcl->value,
             'attending_officer_type' => AttendingOfficerType::Customs->value,
-        ], $overrides);
+        ], $this->validPhotoCredentials(), $overrides);
+    }
+
+    /**
+     * A fresh, verified single-photo session — the default "photos are ready"
+     * state most non-photo-focused tests in this file need to reach the
+     * transaction at all. Dedicated photo-finalization behavior lives in
+     * ExaminationPhotoFinalizationTest.
+     *
+     * @return array<string, string>
+     */
+    private function validPhotoCredentials(): array
+    {
+        ['session' => $session, 'token' => $token] = PhotoUploadSession::issue();
+
+        PhotoUpload::factory()->for($session)->create();
+
+        return [
+            'photo_upload_session_public_id' => $session->public_id,
+            'photo_upload_token' => $token,
+        ];
     }
 }

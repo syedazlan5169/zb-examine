@@ -15,8 +15,14 @@ return [
 
     'required' => 'Medan :attribute wajib diisi.',
     'string' => 'Medan :attribute mestilah rentetan teks.',
+    'array' => 'Medan :attribute mestilah array.',
+    'distinct' => 'Medan :attribute mempunyai nilai berulang.',
     'max' => [
         'string' => 'Medan :attribute tidak boleh melebihi :max aksara.',
+        'array' => 'Medan :attribute tidak boleh melebihi :max item.',
+    ],
+    'min' => [
+        'array' => 'Medan :attribute mesti mempunyai sekurang-kurangnya :min item.',
     ],
     'required_if' => 'Medan :attribute wajib diisi apabila :other ialah :value.',
     'enum' => ':attribute yang dipilih tidak sah.',
@@ -31,6 +37,7 @@ return [
         'form_type' => 'jenis borang',
         'form_type_other' => 'jenis borang lain',
         'customs_form_numbers' => 'nombor borang kastam',
+        'customs_form_numbers.*' => 'nombor borang kastam',
         'container_status' => 'status kontena',
         'reason' => 'sebab pemeriksaan',
         'reason_other' => 'sebab lain',

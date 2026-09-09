@@ -26,7 +26,7 @@ class PhotoUploadWorkbenchTest extends TestCase
         $this->assertStringNotContainsString('/dev/photo-upload-workbench', (string) $result);
     }
 
-    public function test_workbench_renders_csrf_token_and_the_real_examination_form_remains_photo_free(): void
+    public function test_workbench_renders_csrf_token_and_the_real_examination_form_has_its_own_photo_mount_without_workbench_content(): void
     {
         $workbench = $this->get('/dev/photo-upload-workbench');
         $workbench->assertOk();
@@ -36,11 +36,16 @@ class PhotoUploadWorkbenchTest extends TestCase
         $realForm->assertOk();
 
         $content = $realForm->getContent();
-        $this->assertStringNotContainsString('data-role="camera-input"', $content);
-        $this->assertStringNotContainsString('data-role="library-input"', $content);
+
+        // Step 3B.4: the real form now genuinely mounts the shared photo widget.
+        $this->assertStringContainsString('data-role="camera-input"', $content);
+        $this->assertStringContainsString('data-role="library-input"', $content);
+        $this->assertStringContainsString('id="examination-photos"', $content);
+
+        // But never any workbench-only/dev-only content.
         $this->assertStringNotContainsString('photo-upload-workbench', $content);
+        $this->assertStringNotContainsString('data-role="slow-mode-toggle"', $content);
         $this->assertStringNotContainsString('X-Photo-Upload-Token', $content);
-        $this->assertStringNotContainsString('photo-upload-session', $content);
     }
 
     public function test_workbench_renders_the_dev_only_slow_test_mode_toggle(): void

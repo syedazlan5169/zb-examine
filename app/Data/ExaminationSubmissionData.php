@@ -22,7 +22,8 @@ final readonly class ExaminationSubmissionData
         public string $agentCode,
         public string $agentCompanyName,
         public string $agentStationCode,
-        public string $customsFormNumbersInput,
+        /** @var list<string> */
+        public array $customsFormNumbers,
         public ExaminationLocation $location,
         public FormType $formType,
         public ?string $formTypeOther,
@@ -53,7 +54,10 @@ final readonly class ExaminationSubmissionData
             agentCode: self::text($validated['agent_code']),
             agentCompanyName: self::text($validated['agent_company_name']),
             agentStationCode: self::text($validated['agent_station_code']),
-            customsFormNumbersInput: self::text($validated['customs_form_numbers']),
+            customsFormNumbers: array_values(array_map(
+                fn (mixed $value): string => (string) $value,
+                $validated['customs_form_numbers'],
+            )),
             location: ExaminationLocation::from($validated['location']),
             formType: $formType,
             formTypeOther: $formType === FormType::Other

@@ -241,7 +241,9 @@ Submission numbers must not act as authorization tokens granting public access t
 
 ## D017 — Customs Form Parser Duplicate Input
 
-The customs form parser must reject duplicate normalized numbers rather than silently de-duplicating them. This includes duplicates introduced by shorthand expansion, and parsing remains atomic when any token fails.
+**Superseded by D023.** The customs form parser must reject duplicate normalized numbers rather than silently de-duplicating them. This includes duplicates introduced by shorthand expansion, and parsing remains atomic when any token fails.
+
+The rigid `B` + 11-digit syntax and comma-separated shorthand-expansion parser this decision described no longer exist as of D023 (customs form numbers are now free-form, one input per number, entered via repeatable form fields) — kept here for historical context only, not as a currently active rule.
 
 ## D018 — Submission Number Format and Generation Strategy
 
@@ -296,7 +298,7 @@ Integration rule for the future examination submission service: allocate the sub
 
 ## D019 — Examination Submission Pathway
 
-`App\Services\ExaminationSubmissionService::submit()` is the single pathway that creates a complete non-photo examination submission. It composes the existing parser and submission-number generator; it does not reimplement either, does not inspect `Auth`, and does not handle HTTP, Livewire state, translations, photos or notifications.
+`App\Services\ExaminationSubmissionService::submit()` is the single pathway that creates a complete examination submission. It composes the customs-form-number normalizer (D023), the submission-number generator, and photo finalization (D022); it does not reimplement any of them, does not inspect `Auth`, and does not handle HTTP, Livewire state, or translations.
 
 ### Fixed operation order
 
@@ -304,7 +306,7 @@ Integration rule for the future examination submission service: allocate the sub
 capture one instant
         |
         v
-parse customs form numbers
+normalize/validate customs form numbers
         |
         v
 allocate submission number   <- commits on its own
@@ -318,7 +320,7 @@ DB::transaction
 return Examination
 ```
 
-**Parsing happens before allocation.** Invalid Nombor Borang Kastam syntax must never consume a submission number.
+**Normalization/validation happens before allocation.** Customs-number collection errors (empty, duplicate, oversized) must never consume a submission number. (This step was originally a rigid-syntax parser; see D017/D023 — the invariant that it precedes allocation is unchanged, only the validation rules themselves changed.)
 
 **Allocation commits before persistence.** The generator is called outside the examination transaction, so the permanent-gap rule from D018 survives any subsequent persistence failure. Consequently `submit()` must not itself be wrapped in an existing database transaction — the generator's `SubmissionNumberAllocationInsideTransaction` guard enforces this at runtime rather than by convention.
 
@@ -338,7 +340,7 @@ The caller supplies the user context explicitly; `user_id` is `null` for guests.
 
 ### Atomic examination persistence
 
-The `examinations` row and all `examination_customs_form_numbers` rows are created in one transaction. If any insert fails, the examination and every child row roll back together while the allocated submission number stays consumed. Parser, generator and database exceptions propagate unwrapped — no submission-specific exception type exists, because the existing ones are already specific and machine-readable.
+The `examinations` row and all `examination_customs_form_numbers` rows are created in one transaction. If any insert fails, the examination and every child row roll back together while the allocated submission number stays consumed. Normalizer, generator and database exceptions propagate unwrapped — no submission-specific exception type exists, because the existing ones are already specific and machine-readable.
 
 ### `display_order` is 1-based project-wide
 
@@ -458,6 +460,125 @@ attempted; an unreferenced private object is an acceptable, reconcilable state, 
 Examination referencing deleted evidence is not. **Step 3B.5**'s future cleanup command must
 cover both ordinary expired-session sweeping and this orphaned-object reconciliation.
 
+## D022 — Real Examination Form Integration + Atomic Photo Finalization (Step 3B.4)
+
+The real, guest-facing `examinations.create` form now mounts the Step 3B.3 photo widget, and
+`ExaminationSubmissionService::submit()` atomically finalizes 1-10 already-uploaded, verified
+photos alongside the `Examination`/customs rows it already created (D019). Builds on D019/D020/
+D021 without weakening any of their guarantees.
+
+**Photo-first, upload-before-submit.** Photos are uploaded to a `PhotoUploadSession` (D020/D021)
+entirely before the Examination form is ever submitted. Finalization only ever reads metadata
+that Step 3B.2's `complete()` already verified against real bytes — it never touches storage.
+
+**Extended, still-fixed operation order.**
+```text
+capture one instant
+        |
+        v
+parse customs form numbers
+        |
+        v
+unlocked photo-session precheck   <- optimization only, never authoritative
+        |
+        v
+allocate submission number        <- commits on its own, unchanged from D019
+        |
+        v
+DB::transaction
+    +-- lock PhotoUploadSession parent row FOR UPDATE
+    +-- authoritative session + fresh-child-query revalidation
+    +-- examinations row
+    +-- examination_customs_form_numbers rows
+    +-- examination_photos rows (metadata-only copy)
+    +-- photo_upload_sessions.examination_id claim
+        |
+        v
+return Examination
+```
+Parsing customs numbers still strictly precedes both the photo precheck and number allocation —
+an invalid parser input never touches the photo session at all, matching D019's existing
+"parsing before allocation" guarantee extended one step further left.
+
+**The unlocked precheck is an optimization, never authoritative.** `PhotoUploadSessionFinalizer::
+precheck()` gives a fast, DB-only rejection (invalid/expired/finalized session, photo count
+outside 1-10, any unverified photo) before a submission number is ever spent, mirroring the
+existing `PhotoUploadSessionResolver::resolve()` (unlocked) / `resolveLocked()` (authoritative)
+split from D021. Nothing precheck loads — session, photo rows, counts — is ever reused later.
+
+**The parent `photo_upload_sessions` row lock is the finalization mutex, acquired before the
+Examination is created.** Inside the single finalization transaction, `PhotoUploadSessionFinalizer
+::lock()` calls the existing `resolveLocked()` first (D021's mandated session-row mutex,
+unchanged), then issues a **fresh** `photo_uploads` query — ordered by `display_order`, then `id`
+as a stable secondary key — only after the lock is held, and re-validates count (1-10) and
+"every row verified" authoritatively against that fresh result. The precheck's loaded rows are
+never substituted in here. This is the same discipline D021 already established for allocate/
+complete/remove: acquire the lock first, then read/write, never trust a pre-lock read.
+
+**Examination + customs rows + examination_photos + session claim commit together, in one
+transaction.** If any part fails, all of it rolls back — including the session claim — while
+the already-allocated submission number stays permanently consumed. D018/D019's permanent-gap
+policy is unchanged; its scope of "things that can fail after allocation" now also covers photo
+finalization.
+
+**No object move/copy at finalization; temporary vs permanent is DB state, not storage path.**
+`examination_photos.storage_disk`/`storage_path` are copied verbatim from the corresponding
+`photo_uploads` row — the same physical object, never touched, moved, or re-uploaded.
+`display_order` is renumbered 1-based/contiguous from the locked, freshly-queried, ordered
+`photoUploads` at finalize time — never copied verbatim from `photo_uploads.display_order`,
+which may have gaps after mid-session removals (D020 already documented this gap as expected).
+
+**`photo_upload_sessions.examination_id` (already unique, from D020) remains the sole
+finalization signal and the sole concurrency-safety mechanism.** No new locking primitive was
+introduced: a second concurrent submission for the same session blocks on the same row lock,
+then observes `examination_id` already set and is rejected with the existing `session_finalized`
+code (D021) — at most one `Examination` is ever created from one photo session. This was
+verified with a real MySQL 8.4 concurrency test (`tests/Concurrency/
+DuplicatePhotoSessionSubmitTest`, run via `phpunit.concurrency.xml`), the same `pcntl_fork()`
+genuinely-competing-OS-process methodology as D018/D019's submission-number concurrency test.
+
+**Raw bearer token stays outside the domain DTO and is never flashed.** A small
+`App\Data\PhotoUploadSessionCredentials` readonly value object (`publicId`, `token`) carries the
+token from the request straight into `ExaminationSubmissionService::submit()`'s second
+parameter — it is never part of `ExaminationSubmissionData` and never persisted anywhere. Two
+independent no-flash mechanisms are required, not one: `bootstrap/app.php`'s
+`$exceptions->dontFlash(['photo_upload_token'])` covers only Laravel's automatic
+`ValidationException` redirect path; `ExaminationController`'s own manual `back()->withInput()`
+catch-block redirects are a separate code path entirely unprotected by `dontFlash()`, so a
+dedicated `redirectBackWithInput()` helper explicitly excludes `photo_upload_token` via
+`$request->except(...)` on every manual redirect. Blade never calls `old('photo_upload_token')` —
+the hidden field is populated only by client JS from the live `PhotoUploadManager` session.
+
+**Ordinary non-photo validation failures never finalize or destroy the photo session.** Because
+hidden fields are repopulated by JS fresh on every submit attempt (never via `old()`), and
+`sessionStorage` is only ever cleared on the success page (never pre-submit), a validation
+failure on an unrelated field redisplays the form with the same still-live photo session ready
+to resume — no forced re-upload.
+
+**BFCache/back-button hardening.** The success page clears only the namespaced/versioned photo
+session `sessionStorage` key once a submission has genuinely succeeded. The create page adds a
+`pageshow` listener that force-reloads on `event.persisted === true`, so a browser-restored page
+never presents a stale, possibly-already-finalized session as submit-ready. `PhotoUploadManager
+.resumeSessionIfAvailable()` was also extended to check the resume response's `finalized` flag
+and clear stale credentials rather than resurrecting them. The server's authoritative
+`session_finalized` rejection remains the final backstop regardless of any client state.
+
+**No schema migration.** `photo_upload_sessions.examination_id` (D020) and `examination_photos`
+(pre-existing, unmodified by D020/D021) already carried every column this step needed.
+
+**Photo domain error codes extend, rather than duplicate, D021's existing structures.** Two new
+`App\Exceptions\PhotoUploadInvalid` codes — `photo_count_invalid`, `unverified_photo_pending` —
+cover finalize-time-only checks; the existing `PhotoUploadSessionInvalid` codes
+(`invalid_session`/`session_expired`/`session_finalized`) are reused unchanged for session-level
+rejection. No new exception hierarchy was introduced.
+
+**`PhotoUpload` rows/objects are left in place after finalization, not deleted or moved.** A
+finalized session's `photo_uploads` rows become historically vestigial once `examination_photos`
+is the authoritative evidence copy, but pruning them (or their now-doubly-referenced storage
+objects) is explicitly deferred to **Step 3B.5**, alongside the existing orphaned-object/
+expired-session cleanup scope from D021.
+
+
 **`complete` is idempotent by design.** A photo already `verified_at`-set returns its existing
 state unchanged on a repeat call — no metadata rewrite, no `verified_at` bump — so a client
 retrying after a lost response never causes a second write. Metadata
@@ -509,3 +630,78 @@ purely transient transport/network reasons that say nothing about the object's o
 `bestEffortDelete()` is reserved for paths where DB ownership/reference has already been
 removed (`remove()`) or deletion is otherwise provably safe, never for a bare verification
 failure.
+
+## D023 — Free-Form Repeated Customs Form Numbers (Step 3B.4 refinement)
+
+Customs form number formats vary by form type (K1/K2/K3/K8, Attachment A/uCustoms/ATA Carnet
+each have their own real-world numbering conventions) — the old rigid `B` + 11-digit syntax with
+comma-separated shorthand expansion (D017) modeled only one of these formats and is retired.
+**Supersedes D017's active rule** (D017 itself is kept as historical record, not deleted).
+
+**One UI input = one opaque customs form number.** The real form now submits
+`customs_form_numbers[]`, an array with one value per repeatable input, instead of a single
+comma-separated string. Each value is treated as an opaque business identifier at the
+persistence layer — no `B` prefix, no digit-count, no comma parsing, no shorthand expansion.
+Examples that are all equally valid: `B18106028839`, `ABC/2026/123`, `K8-123456`,
+`UCUSTOMS-ABC-99`, `ATA 123/2026`.
+
+**`App\Services\CustomsFormNumberNormalizer` replaces `App\Services\CustomsFormNumberParser`.**
+`normalize(array $numbers): array` requires at least one value, trims each value, rejects empty
+values, rejects values over 100 characters, rejects duplicates (trimmed, case-insensitive
+comparison), preserves the submitted value's original trimmed casing for storage, and preserves
+input order. It reuses the existing `App\Exceptions\InvalidCustomsFormNumberInput` exception
+(cleanly represents collection-level errors; no new exception hierarchy needed) with a reduced
+set of codes: `empty_input`, `empty_token`, `value_too_long`, `duplicate_number`. The obsolete
+`invalid_number`/`missing_base_number` codes and their translations no longer exist.
+
+**Duplicate semantics: trim + case-insensitive comparison, but storage preserves the exact
+submitted (trimmed) value.** `B18106028839` and `b18106028839` are duplicates; `" B18106028839 "`
+and `"B18106028839"` are duplicates. `k8-AbC-123` is stored exactly as `k8-AbC-123` — the
+normalizer never uppercases/lowercases a value, only trims it.
+
+**`examination_customs_form_numbers.number` is `VARCHAR(100)`**, changed from the old fixed
+`CHAR(12)` via a normal schema migration (`Schema::table(...)->change()`, no `doctrine/dbal`
+dependency needed — Laravel 11+ generates native `ALTER`/`MODIFY` statements). The existing
+`unique(examination_id, number)` constraint and the `number` index are preserved unchanged by
+the column-type change.
+
+**Domain-service validation remains authoritative, not merely FormRequest convenience.**
+`ExaminationSubmissionRequest` validates `customs_form_numbers` as `required|array|min:1|max:255`
+and each `customs_form_numbers.*` as `required|string|max:100|distinct:ignore_case` (basic
+shape/array-level validation, `prepareForValidation()` trims each value but never deletes/
+collapses empty or duplicate entries — those must fail validation, never be silently discarded).
+`ExaminationSubmissionData` now carries `customsFormNumbers` as a plain ordered array of strings,
+never a raw comma-separated string. `ExaminationSubmissionService::submit()` still calls the
+normalizer as the first and only source of truth for the actual persisted values — since the
+service can be invoked directly (tests, future callers) bypassing the FormRequest entirely, the
+normalizer is not merely a defense-in-depth duplicate of the FormRequest's rules, it is the
+authoritative gate. This preserves D019's operation order exactly: normalize/validate customs
+numbers still strictly precedes both the photo-session precheck and submission-number
+allocation (D022); a customs-number collection error still consumes no submission number and
+never touches the photo session.
+
+**`display_order` remains 1-based and contiguous**, assigned from the normalizer's returned
+array position — unchanged from D019's original behavior, just now driven by the normalizer's
+ordered output instead of the old parser's ordered output.
+
+**Client UX: Add clones the previous row's current value for fast sequential entry.** Clicking
+Add appends a new `customs_form_numbers[]` input prefilled with the last input's current value,
+focused, with the caret placed at the end — so an agent entering a sequential run of numbers can
+just edit the trailing digits. This intentionally creates a temporary client-side duplicate;
+duplicate UI validation only runs on blur/remove/submit, never immediately on Add, so the
+expected clone-then-edit workflow never flashes a spurious error. Client-side duplicate
+comparison (`trim().toLocaleLowerCase()`) is UX-only — the server/domain normalizer remains
+authoritative regardless of what the client believes. The first row can never be removed;
+additional rows have a Remove action. Old input reconstructs one input per submitted value after
+a validation redirect (never collapsed back into a single field).
+
+**Photo not-ready message simplified**, no behavior change: replaces the longer "please wait for
+all photos to finish uploading (or remove them)" copy with a single sentence in both locales.
+
+**"Lampiran A (Tarik Balik)" is an intentionally untranslated domain/formal term** and now
+renders identically (same literal string) in both the `ms` and `en` locales, rather than being
+translated to "Attachment A (Withdrawal)" in English.
+
+**Locale switcher display simplified to `MY`/`EN`.** Internal locale codes (`ms`/`en`), URLs, and
+session behavior are unchanged — this is a display-only label change for a more compact,
+mobile-friendly control.

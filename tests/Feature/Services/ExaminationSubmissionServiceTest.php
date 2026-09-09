@@ -3,6 +3,7 @@
 namespace Tests\Feature\Services;
 
 use App\Data\ExaminationSubmissionData;
+use App\Data\PhotoUploadSessionCredentials;
 use App\Enums\AttendingOfficerType;
 use App\Enums\ContainerStatus;
 use App\Enums\ExaminationLocation;
@@ -12,9 +13,12 @@ use App\Exceptions\InvalidCustomsFormNumberInput;
 use App\Exceptions\SubmissionNumberAllocationInsideTransaction;
 use App\Models\Examination;
 use App\Models\ExaminationCustomsFormNumber;
+use App\Models\PhotoUpload;
+use App\Models\PhotoUploadSession;
 use App\Models\User;
 use App\Services\ExaminationSubmissionService;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
@@ -29,13 +33,29 @@ class ExaminationSubmissionServiceTest extends TestCase
     // generator's no-nested-transaction guard.
     use DatabaseMigrations;
 
-    private ExaminationSubmissionService $service;
+    private object $service;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->service = $this->app->make(ExaminationSubmissionService::class);
+        $real = $this->app->make(ExaminationSubmissionService::class);
+
+        // Step 3B.4 requires photo credentials on every submit(); this thin
+        // adapter injects a fresh, verified, single-use photo session per call
+        // so every pre-existing call site in this file keeps working unchanged.
+        $this->service = new class($real)
+        {
+            public function __construct(private readonly ExaminationSubmissionService $real) {}
+
+            public function submit(ExaminationSubmissionData $data, ?User $user = null, ?CarbonInterface $instant = null): Examination
+            {
+                ['session' => $session, 'token' => $token] = PhotoUploadSession::issue();
+                PhotoUpload::factory()->for($session)->create();
+
+                return $this->real->submit($data, new PhotoUploadSessionCredentials($session->public_id, $token), $user, $instant);
+            }
+        };
     }
 
     public function test_a_guest_submission_is_persisted_without_a_user(): void
@@ -91,10 +111,10 @@ class ExaminationSubmissionServiceTest extends TestCase
         $this->assertSame('STN-01', $persisted->agent_station_code);
     }
 
-    public function test_it_expands_shorthand_customs_form_numbers_into_ordered_child_rows(): void
+    public function test_it_persists_multiple_free_form_customs_form_numbers_in_order(): void
     {
         $examination = $this->service->submit(
-            $this->data(['customs_form_numbers' => 'B18112068450,51,52,53']),
+            $this->data(['customs_form_numbers' => ['B18112068450', 'ABC/2026/123', 'K8-123456']]),
         );
 
         $rows = ExaminationCustomsFormNumber::where('examination_id', $examination->getKey())
@@ -104,51 +124,58 @@ class ExaminationSubmissionServiceTest extends TestCase
         $this->assertSame(
             [
                 ['B18112068450', 1],
-                ['B18112068451', 2],
-                ['B18112068452', 3],
-                ['B18112068453', 4],
+                ['ABC/2026/123', 2],
+                ['K8-123456', 3],
             ],
             $rows->map(fn (ExaminationCustomsFormNumber $row) => [$row->number, $row->display_order])->all(),
         );
     }
 
-    public function test_it_persists_mixed_complete_and_shorthand_customs_form_numbers_in_order(): void
+    public function test_arbitrary_formats_survive_unchanged_except_trim(): void
     {
         $examination = $this->service->submit(
-            $this->data(['customs_form_numbers' => 'B18112068450,51,B18112068570,71']),
+            $this->data(['customs_form_numbers' => ['  k8-AbC-123  ', 'UCUSTOMS-ABC-99']]),
         );
 
-        $rows = ExaminationCustomsFormNumber::where('examination_id', $examination->getKey())
+        $numbers = ExaminationCustomsFormNumber::where('examination_id', $examination->getKey())
             ->orderBy('display_order')
-            ->get();
+            ->pluck('number')
+            ->all();
 
-        $this->assertSame(
-            [
-                ['B18112068450', 1],
-                ['B18112068451', 2],
-                ['B18112068570', 3],
-                ['B18112068571', 4],
-            ],
-            $rows->map(fn (ExaminationCustomsFormNumber $row) => [$row->number, $row->display_order])->all(),
-        );
+        $this->assertSame(['k8-AbC-123', 'UCUSTOMS-ABC-99'], $numbers);
     }
 
-    public function test_invalid_customs_form_input_propagates_and_consumes_no_submission_number(): void
+    public function test_duplicate_customs_form_numbers_are_rejected_and_consume_no_submission_number(): void
     {
         $instant = CarbonImmutable::create(2026, 9, 8, 2, 0, 0, 'UTC');
 
         try {
-            $this->service->submit($this->data(['customs_form_numbers' => 'NOT-A-NUMBER']), null, $instant);
+            $this->service->submit($this->data(['customs_form_numbers' => ['B18112068450', 'b18112068450']]), null, $instant);
             $this->fail('Expected InvalidCustomsFormNumberInput to be thrown.');
         } catch (InvalidCustomsFormNumberInput $exception) {
-            $this->assertSame('invalid_number', $exception->getErrorCode());
+            $this->assertSame('duplicate_number', $exception->getErrorCode());
         }
 
         $this->assertSame(0, Examination::count());
         $this->assertNull(
             DB::table('submission_sequences')->where('sequence_date', '2026-09-08')->value('last_number'),
-            'Parsing must happen before allocation so invalid input wastes no sequence number.',
+            'Normalization must happen before allocation so invalid input wastes no sequence number.',
         );
+    }
+
+    public function test_empty_customs_form_number_collection_is_rejected_before_number_allocation(): void
+    {
+        $instant = CarbonImmutable::create(2026, 9, 8, 2, 0, 0, 'UTC');
+
+        try {
+            $this->service->submit($this->data(['customs_form_numbers' => []]), null, $instant);
+            $this->fail('Expected InvalidCustomsFormNumberInput to be thrown.');
+        } catch (InvalidCustomsFormNumberInput $exception) {
+            $this->assertSame('empty_input', $exception->getErrorCode());
+        }
+
+        $this->assertSame(0, Examination::count());
+        $this->assertNull(DB::table('submission_sequences')->where('sequence_date', '2026-09-08')->value('last_number'));
     }
 
     public function test_wrapping_submit_in_an_outer_transaction_is_rejected_before_anything_is_allocated(): void
@@ -158,7 +185,7 @@ class ExaminationSubmissionServiceTest extends TestCase
         // The generator's guard is the single enforcement mechanism; the service adds none.
         try {
             DB::transaction(function () use ($instant) {
-                $this->service->submit($this->data(['customs_form_numbers' => 'B18112068450,51']), null, $instant);
+                $this->service->submit($this->data(['customs_form_numbers' => ['B18112068450', 'B18112068451']]), null, $instant);
             });
             $this->fail('Expected SubmissionNumberAllocationInsideTransaction to be thrown.');
         } catch (SubmissionNumberAllocationInsideTransaction) {
@@ -190,7 +217,7 @@ class ExaminationSubmissionServiceTest extends TestCase
         });
 
         try {
-            $this->service->submit($this->data(['customs_form_numbers' => 'B18112068450,51']), null, $instant);
+            $this->service->submit($this->data(['customs_form_numbers' => ['B18112068450', 'B18112068451']]), null, $instant);
             $this->fail('Expected LogicException to be thrown.');
         } catch (LogicException $exception) {
             $this->assertSame('parent persistence failed', $exception->getMessage());
@@ -224,7 +251,7 @@ class ExaminationSubmissionServiceTest extends TestCase
         });
 
         try {
-            $this->service->submit($this->data(['customs_form_numbers' => 'B18112068450,51,52']), null, $instant);
+            $this->service->submit($this->data(['customs_form_numbers' => ['B18112068450', 'B18112068451', 'B18112068452']]), null, $instant);
             $this->fail('Expected LogicException to be thrown.');
         } catch (LogicException $exception) {
             $this->assertSame('child persistence failed', $exception->getMessage());
@@ -359,7 +386,7 @@ class ExaminationSubmissionServiceTest extends TestCase
             'agent_code' => 'AGT-001',
             'agent_company_name' => 'Syarikat Penghantaran Sdn Bhd',
             'agent_station_code' => 'STN-01',
-            'customs_form_numbers' => 'B18112068450',
+            'customs_form_numbers' => ['B18112068450'],
             'location' => ExaminationLocation::ContainerGateTerminal->value,
             'form_type' => FormType::K1->value,
             'form_type_other' => null,

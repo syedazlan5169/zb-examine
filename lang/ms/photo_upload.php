@@ -12,6 +12,8 @@ return [
         'photo_not_found' => 'Gambar tersebut tidak ditemui.',
         'upload_not_ready' => 'Gambar tersebut belum selesai dimuat naik.',
         'photo_state_conflict' => 'Tindakan itu tidak boleh dilakukan pada gambar ini sekarang.',
+        'photo_count_invalid' => 'Sila muat naik antara 1 hingga 10 gambar.',
+        'unverified_photo_pending' => 'Sila tunggu semua gambar selesai dimuat naik sebelum menghantar.',
     ],
 
 ];

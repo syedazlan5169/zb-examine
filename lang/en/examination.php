@@ -26,7 +26,7 @@ return [
     ],
 
     'help' => [
-        'customs_form_numbers' => 'Example: B18112068450,51,52 — separate multiple numbers with commas, repeated numbers can be shortened to their last two digits.',
+        'customs_form_numbers' => 'Enter each customs form number separately.',
     ],
 
     'reason_placeholder' => 'No specific reason',
@@ -42,7 +42,7 @@ return [
             'k2' => 'Customs 2 (K2)',
             'k3' => 'Customs 3 (K3)',
             'k8' => 'Customs 8 (K8)',
-            'attachment_a' => 'Attachment A (Withdrawal)',
+            'attachment_a' => 'Lampiran A (Tarik Balik)',
             'ucustoms' => 'uCustoms',
             'ata_carnet' => 'ATA Carnet',
             'other' => 'Other',
@@ -69,14 +69,19 @@ return [
         ],
     ],
 
+    'customs_form_numbers' => [
+        'add' => 'Add',
+        'remove' => 'Remove',
+        'duplicate' => 'This customs form number has already been added.',
+    ],
+
     'errors' => [
         'validation_summary' => 'Please check the form for errors below.',
         'customs_form_numbers' => [
             'empty_input' => 'Please enter at least one customs form number.',
-            'empty_token' => 'One of the customs form numbers is blank — please check for extra commas.',
-            'invalid_number' => 'One of the customs form numbers is not valid. Use the format B18112068450.',
-            'missing_base_number' => 'A shorthand number was entered before any complete customs form number. Enter the full number first.',
-            'duplicate_number' => 'A customs form number was entered more than once.',
+            'empty_token' => 'One of the customs form numbers is blank. Please fill it in or remove the row.',
+            'value_too_long' => 'One of the customs form numbers is too long (maximum 100 characters).',
+            'duplicate_number' => 'This customs form number has already been added.',
             'generic' => 'The customs form numbers could not be processed. Please check your entry.',
         ],
         'sequence_exhausted' => 'The system has reached its submission limit for today. Please try again later.',

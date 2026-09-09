@@ -26,6 +26,8 @@ class ExaminationSubmissionRequest extends FormRequest
         $reason = $this->input('reason');
         $reason = $reason === '' ? null : $reason;
 
+        $customsFormNumbers = $this->input('customs_form_numbers');
+
         $this->merge([
             'reason' => $reason,
             'form_type_other' => $this->input('form_type') === FormType::Other->value
@@ -34,6 +36,10 @@ class ExaminationSubmissionRequest extends FormRequest
             'reason_other' => $reason === ExaminationReason::Other->value
                 ? $this->input('reason_other')
                 : null,
+            // Trim only — empty/duplicate entries must still fail validation, never be silently dropped.
+            'customs_form_numbers' => is_array($customsFormNumbers)
+                ? array_map(fn (mixed $value): mixed => is_string($value) ? trim($value) : $value, $customsFormNumbers)
+                : $customsFormNumbers,
         ]);
     }
 
@@ -54,7 +60,8 @@ class ExaminationSubmissionRequest extends FormRequest
             'form_type' => ['required', 'string', Rule::enum(FormType::class)],
             'form_type_other' => ['nullable', 'string', 'max:255', 'required_if:form_type,other'],
 
-            'customs_form_numbers' => ['required', 'string', 'max:1000'],
+            'customs_form_numbers' => ['required', 'array', 'min:1', 'max:255'],
+            'customs_form_numbers.*' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
 
             'container_status' => ['required', 'string', Rule::enum(ContainerStatus::class)],
 
@@ -62,6 +69,11 @@ class ExaminationSubmissionRequest extends FormRequest
             'reason_other' => ['nullable', 'string', 'max:255', 'required_if:reason,other'],
 
             'attending_officer_type' => ['required', 'string', Rule::enum(AttendingOfficerType::class)],
+
+            // Basic shape only — domain/session validity belongs to PhotoUploadSessionFinalizer,
+            // never a DB `exists:` rule here (would leak session-existence semantics via timing).
+            'photo_upload_session_public_id' => ['required', 'string', 'max:255'],
+            'photo_upload_token' => ['required', 'string', 'max:255'],
         ];
     }
 }

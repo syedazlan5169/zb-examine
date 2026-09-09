@@ -6,15 +6,15 @@ Last updated: 2026-09-08
 
 Initial Laravel and Docker development foundation is operational.
 
-The current domain foundation includes the `Examination`, `ExaminationCustomsFormNumber`, and `ExaminationPhoto` models, related enums, and the Nombor Borang Kastam parser.
+The current domain foundation includes the `Examination`, `ExaminationCustomsFormNumber`, and `ExaminationPhoto` models, related enums, and the customs form number normalizer.
 
 The submission-number generator is implemented: `App\Services\SubmissionNumberGenerator` allocates unique `ZB-YYMMDD-NNNN` numbers backed by a dedicated `submission_sequences` counter table with MySQL row-level locking, using the `Asia/Kuala_Lumpur` business timezone (`config('zb-examine.business_timezone')`) independently of the application's UTC `config('app.timezone')`. See D018 in docs/DECISIONS.md.
 
-The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete non-photo submission by composing the parser and the number generator. See D019 in docs/DECISIONS.md.
+The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete submission by composing the customs-form-number normalizer, the number generator, and photo finalization. See D019/D022/D023 in docs/DECISIONS.md.
 
-The user-facing form, authentication and photo workflow have not yet been implemented.
+The real Examination form, photo integration, and customs-form-number UI are implemented (Step 3B.4). Authentication/profile auto-fill has not yet been implemented.
 
-The Nombor Borang Kastam parser is now implemented and covered by dedicated unit tests. It normalizes complete numbers, expands the confirmed two-digit shorthand format, rejects malformed or duplicate values, and does not perform persistence.
+`App\Services\CustomsFormNumberNormalizer` (D023) replaces the retired `CustomsFormNumberParser`. It accepts free-form, opaque customs form numbers (no `B`+11-digit syntax, no shorthand expansion), trims each value, rejects empty/oversized/duplicate (case-insensitive) values, and preserves input order — covered by dedicated unit tests.
 
 ## Submission Number Generation
 
@@ -62,28 +62,28 @@ Note: any suite using `DatabaseMigrations` rolls its migrations back after the f
 
 ## Examination Submission
 
-`App\Services\ExaminationSubmissionService::submit(ExaminationSubmissionData $data, ?User $user = null, ?CarbonInterface $instant = null): Examination`
+`App\Services\ExaminationSubmissionService::submit(ExaminationSubmissionData $data, PhotoUploadSessionCredentials $photoCredentials, ?User $user = null, ?CarbonInterface $instant = null): Examination`
 
-Operation order is fixed: capture one immutable UTC instant, parse the customs form numbers, allocate the submission number (committing on its own), then persist the `examinations` row and all `examination_customs_form_numbers` rows in one transaction.
+Operation order is fixed: capture one immutable UTC instant, normalize/validate the customs form numbers (D023), run the unlocked photo-session precheck (D022), allocate the submission number (committing on its own), then persist the `examinations` row, `examination_customs_form_numbers` rows, `examination_photos` rows, and the photo-session claim in one transaction.
 
 The same captured instant feeds both the number's business-date bucket and `submitted_at`, which is stored in UTC. Agent snapshot fields always come from the submitted data, never from the `User` record. `display_order` on child rows is 1-based.
 
 `submit()` must not be called inside an existing database transaction; the generator's guard rejects that at runtime.
 
-`App\Data\ExaminationSubmissionData` is a `final readonly` DTO with a private constructor and a single `fromValidated(array): self` entry point. It resolves enum backing strings to enum instances and canonicalizes `form_type_other` / `reason_other` so stale hidden-form values cannot be persisted. It intentionally carries no `submission_no`, `user_id`, `submitted_at` or photo data.
+`App\Data\ExaminationSubmissionData` is a `final readonly` DTO with a private constructor and a single `fromValidated(array): self` entry point. It resolves enum backing strings to enum instances and canonicalizes `form_type_other` / `reason_other` so stale hidden-form values cannot be persisted. It carries `customsFormNumbers` as a plain ordered array of strings (not a raw comma-separated string). It intentionally carries no `submission_no`, `user_id`, `submitted_at`, or raw photo credentials (see `App\Data\PhotoUploadSessionCredentials`, D022).
 
-Parser, generator and database exceptions propagate unwrapped. A persistence failure rolls the examination and every child row back while the allocated submission number stays permanently consumed.
+Normalizer, generator and database exceptions propagate unwrapped. A persistence failure rolls the examination and every child row back while the allocated submission number stays permanently consumed.
 
 Test coverage:
 
 ```text
 tests/Feature/Services/ExaminationSubmissionServiceTest.php
     guest and registered-agent submissions, snapshot independence from the
-    User profile, shorthand and mixed customs-number expansion with 1-based
-    display_order, parser rejection consuming no sequence number,
-    parent-failure and child-failure rollback with a permanently consumed
-    number, *_other canonicalization, submitted_at UTC persistence,
-    UTC/KL midnight boundary, sequential submissions
+    User profile, multiple free-form customs numbers with 1-based
+    display_order, duplicate/empty-collection rejection consuming no
+    sequence number, parent-failure and child-failure rollback with a
+    permanently consumed number, *_other canonicalization, submitted_at UTC
+    persistence, UTC/KL midnight boundary, sequential submissions
 ```
 
 Those rollback tests use test-scoped `Event::listen('eloquent.creating: ...')` listeners; no production hooks or "simulate failure" arguments exist.
@@ -343,17 +343,17 @@ GET  /examinations/success examinations.success
 
 The create/store routes are guest-accessible; no authentication is required to submit. If a user happens to be authenticated, `auth()->user()` is passed to `ExaminationSubmissionService::submit()`, but no login/registration screens exist yet and no profile auto-fill is implemented.
 
-`ExaminationSubmissionRequest::prepareForValidation()` converts an empty-string `reason` (as posted by a `<select>` placeholder) to `null` before validation, and nulls `form_type_other`/`reason_other` whenever their controlling field isn't `other`, ahead of the DTO's own canonicalization. Enum fields are validated with `Illuminate\Validation\Rule::enum(...)`; string length limits mirror the actual `examinations` table columns.
+`ExaminationSubmissionRequest::prepareForValidation()` converts an empty-string `reason` (as posted by a `<select>` placeholder) to `null` before validation, nulls `form_type_other`/`reason_other` whenever their controlling field isn't `other`, and trims each `customs_form_numbers.*` array value (without deleting empty/duplicate entries, which must still fail validation) ahead of the DTO's own canonicalization. `customs_form_numbers` is validated as `required|array|min:1|max:255` with each `customs_form_numbers.*` as `required|string|max:100|distinct:ignore_case` (D023) — no DB `exists:` rule for the photo-session fields, which use the same basic-shape-only approach. Enum fields are validated with `Illuminate\Validation\Rule::enum(...)`; string length limits mirror the actual `examinations`/`examination_customs_form_numbers` table columns.
 
-`ExaminationController::store()` builds `ExaminationSubmissionData::fromValidated()` and calls `ExaminationSubmissionService::submit()` directly — it does not parse customs form numbers or allocate submission numbers itself. `App\Exceptions\InvalidCustomsFormNumberInput` is mapped to a localized field error on `customs_form_numbers`; `App\Exceptions\SubmissionNumberSequenceExhausted` becomes a localized form-level `submission_error`; any other `Throwable` is reported via `report()` and shown only as a safe generic localized failure message. No exception internals are ever rendered.
+`ExaminationController::store()` builds `ExaminationSubmissionData::fromValidated()` and `PhotoUploadSessionCredentials::fromRequest()`, then calls `ExaminationSubmissionService::submit()` directly — it does not normalize customs form numbers, run the photo precheck, or allocate submission numbers itself. `App\Exceptions\InvalidCustomsFormNumberInput` is mapped to a localized field error on `customs_form_numbers`; `App\Exceptions\SubmissionNumberSequenceExhausted` and `PhotoUploadSessionInvalid`/`PhotoUploadInvalid` become a localized form-level `submission_error`; any other `Throwable` is reported via `report()` and shown only as a safe generic localized failure message. Every manual redirect goes through a `redirectBackWithInput()` helper that excludes `photo_upload_token` from flashed input (`bootstrap/app.php`'s `dontFlash()` separately covers only the automatic `ValidationException` path). No exception internals are ever rendered.
 
 On success, the generated `submission_no` is stored in normal (non-flash) session state (`examination_success`), so refreshing `examinations.success` keeps showing it; visiting `examinations.create` again clears that state. There is no public route containing a `submission_no`.
 
-Bilingual copy lives in `lang/{ms,en}/examination.php` (headings, field/option labels, parser-error mappings, success/failure/loading text) and a small `ms`-only subset of `lang/ms/validation.php` (only the rule keys this form actually uses — everything else falls back to `lang/en/validation.php` per key). The existing `app.name` translation key now holds the official product name (`Sistem Daftar Pemeriksaan` / `Examine Registration System`) and is reused in the shared layout instead of introducing a competing key.
+Bilingual copy lives in `lang/{ms,en}/examination.php` (headings, field/option labels, customs-number normalizer-error mappings, repeatable-field Add/Remove/duplicate strings, success/failure/loading text), `lang/{ms,en}/examination_photos.php` (real-form photo widget copy), and a small `ms`-only subset of `lang/ms/validation.php` (only the rule keys this form actually uses, now including `array`/`distinct`/`min.array` — everything else falls back to `lang/en/validation.php` per key). The existing `app.name` translation key now holds the official product name (`Sistem Daftar Pemeriksaan` / `Examine Registration System`) and is reused in the shared layout instead of introducing a competing key. The locale switcher displays compact `MY`/`EN` labels (`lang/{ms,en}/app.php`); internal locale codes/URLs are unchanged. "Lampiran A (Tarik Balik)" renders identically in both locales (D023) — an intentionally untranslated domain term.
 
-Test coverage: `tests/Feature/ExaminationSubmissionFormTest.php` (uses `DatabaseMigrations`, not `RefreshDatabase`, for the same reason as the Step 2G service tests) covers guest access, locale rendering, required/enum/conditional validation, the `reason=''` → `null` normalization, parser-error field mapping without consuming a submission number, shorthand parsing, guest vs. authenticated snapshot independence, the success/refresh/clear-on-new-submission session flow, sequence-exhaustion safe messaging, and unexpected-exception safe messaging (asserted via `Illuminate\Support\Facades\Exceptions::fake()`).
+Test coverage: `tests/Feature/ExaminationSubmissionFormTest.php` (uses `DatabaseMigrations`, not `RefreshDatabase`, for the same reason as the Step 2G service tests) covers guest access, locale rendering, required/enum/conditional validation, the `reason=''` → `null` normalization, free-form customs-number acceptance (including that legacy comma shorthand is no longer expanded), duplicate/empty-row rejection, old-input reconstruction of multiple customs-number rows, the Lampiran A wording and compact locale switcher, guest vs. authenticated snapshot independence, the success/refresh/clear-on-new-submission session flow, sequence-exhaustion safe messaging, and unexpected-exception safe messaging (asserted via `Illuminate\Support\Facades\Exceptions::fake()`).
 
-Photos are not implemented in this form. The Blade layout leaves a natural, currently-empty `<section data-future-section="photos">` placeholder in `examinations/create.blade.php` for the future Photo section, but no photo inputs, compression, or storage integration exist yet.
+Photos are integrated into this form as of Step 3B.4 (see below) — the previously-empty `<section data-future-section="photos">` placeholder in `examinations/create.blade.php` has been replaced with the real photo widget, hidden session-credential fields, and atomic finalization on submit. Customs form numbers were further refined to a free-form, repeatable-field contract (D023) after Step 3B.4's initial real-device pass.
 
 ## Photo Upload Domain Foundation (Step 3B.1)
 
@@ -393,21 +393,89 @@ Test coverage: `tests/Feature/PhotoUploadSessionApiTest.php` and `tests/Feature/
 - After refresh, verified photo cards may therefore be restored without thumbnails.
 - Restoring private previews after reload is deferred to a later integration/storage-retrieval step using authorized private image access (e.g. signed/private URLs), rather than persisting evidence image data in browser storage.
 
+## Real Examination Form Photo Integration + Atomic Finalization (Step 3B.4)
+
+The real, guest-facing `examinations.create` form now mounts the Step 3B.3 photo widget and
+atomically finalizes 1-10 verified photos alongside every Examination submission. See D022 in
+docs/DECISIONS.md for the full rationale.
+
+`App\Services\PhotoUploadSessionFinalizer` (new) is the only place finalization happens, with
+three responsibilities: `precheck()` (unlocked, fast, optimization-only), `lock()` (must run
+inside an active transaction; locks the parent `photo_upload_sessions` row via the existing
+`PhotoUploadSessionResolver::resolveLocked()`, then re-validates against a **fresh** post-lock
+`photo_uploads` query — never precheck's loaded rows), and `attachPhotos()` (metadata-only
+`examination_photos` rows with contiguous 1-based `display_order`, plus the
+`photo_upload_sessions.examination_id` claim). `ExaminationSubmissionService::submit()` now takes
+a second parameter, `App\Data\PhotoUploadSessionCredentials` (`publicId`, `token`) — a small
+readonly DTO kept entirely separate from `ExaminationSubmissionData` so the raw bearer token is
+never mass-assigned/persisted. The service's sequence is: capture immutable instant →
+normalize/validate customs form numbers → unlocked photo-session precheck → allocate submission
+number (unchanged, own commit) →
+`DB::transaction` (lock session → create Examination → create customs rows → attach photos →
+commit). All existing D018/D019 guarantees (one captured instant,
+normalization-before-photo-precheck-and-allocation,
+independent number-allocation commit, permanent gap on post-allocation failure, atomic
+Examination persistence) remain intact; the permanent-gap policy now also explicitly covers
+photo-finalization failures.
+
+Two new `App\Exceptions\PhotoUploadInvalid` codes (`photo_count_invalid`,
+`unverified_photo_pending`) cover finalize-time-only checks; existing `PhotoUploadSessionInvalid`
+codes (`invalid_session`/`session_expired`/`session_finalized`) are reused unchanged.
+`ExaminationSubmissionRequest` adds two basic-shape-only fields (`photo_upload_session_public_id`,
+`photo_upload_token` — never a DB `exists:` rule). `ExaminationController` builds
+`PhotoUploadSessionCredentials::fromRequest()` and routes every manual error redirect through a
+new `redirectBackWithInput()` helper that excludes `photo_upload_token` from flashed input
+(`bootstrap/app.php`'s `$exceptions->dontFlash(['photo_upload_token'])` separately covers only
+the automatic `ValidationException` redirect path — both are required, neither alone suffices).
+
+Client-side, `resources/js/examination-photos.js` mounts the existing, unmodified
+`PhotoUploadManager` on the real form (no Slow Test Mode, no dev diagnostics — a
+`showDiagnostics: false` config flag trims the Original/Optimized/Stage breakdown for real
+users), gates the form's `submit` event on `isReadyForSubmission()`, populates the two hidden
+fields fresh from the live manager session at submit time (never via Blade `old()` for the
+token), and force-reloads on a BFCache-restored `pageshow`. `PhotoUploadManager
+.resumeSessionIfAvailable()` was extended to detect a `finalized` resume response and clear
+stale credentials rather than resurrecting them. `sessionStorage` is cleared only on the success
+page (guarded on a success-page-only DOM marker, since `app.js` loads on every page), never
+before/at submit — an ordinary non-photo validation failure therefore never destroys or
+finalizes the still-live photo session.
+
+No schema migration was needed: `photo_upload_sessions.examination_id` (D020) and
+`examination_photos` (pre-existing) already carried every required column. `PhotoUpload`
+rows/objects are intentionally left in place after finalization — pruning them remains
+Step 3B.5 scope.
+
+Test coverage: `tests/Feature/ExaminationPhotoFinalizationTest.php` and
+`tests/Feature/Services/PhotoUploadSessionFinalizerTest.php` (both `DatabaseMigrations`) cover
+the happy paths (guest/authenticated/10-photo), precheck rejecting 0/pending photos before number
+allocation, invalid/expired/finalized session rejection, the precheck-race scenario, final-
+transaction rollback (Examination + customs + examination_photos + session claim together) with
+the submission number staying consumed, customs-number-validation-failure-before-photo-interaction,
+1-based
+contiguous `display_order` even from gapped source rows, exact metadata copying, a mocked-transport
+assertion that no storage call ever occurs during finalization, ordinary-validation-failure photo
+session survival, the two raw-token no-flash regressions (automatic `ValidationException` path
+and manual controller-redirect path, independently), and that the real public pages never expose
+private storage paths. `tests/Concurrency/DuplicatePhotoSessionSubmitTest.php` (real MySQL +
+`pcntl_fork`, `phpunit.concurrency.xml`) proves at most one Examination is ever created from
+concurrent submissions of the same photo session.
+
 ## Next Development Stage
 
-The examination domain, its core submission pathway, and the guest-facing non-photo submission form are implemented and tested. Next work should build on top of the existing form.
+The examination domain, its core submission pathway, and the full guest-facing photo-integrated submission form are implemented and tested. Next work should build on top of the existing form.
 
 Important upcoming areas include:
 
 ```text
-Photo capture, client-side compression, and examination_photos persistence
+Step 3B.5: abandoned-session/orphaned-object cleanup, PhotoUpload row pruning after finalization
 DigitalOcean Spaces integration
+Authenticated private photo preview retrieval (signed/private URLs)
 Authentication and registered-agent profile auto-fill
 Agent submission history
 Officer search/detail interface
 ```
 
-The overall photo-upload architecture is approved (see D020/D021 in docs/DECISIONS.md). The domain foundation (Step 3B.1) and the local upload-session HTTP API/storage transport (Step 3B.2) both exist, but photos are still deliberately excluded from `ExaminationSubmissionService`; Examination-photo finalization, client-side compression/UI, DigitalOcean Spaces, and abandoned/orphan cleanup remain future steps.
+The overall photo-upload architecture is approved and now fully integrated end-to-end (see D020/D021/D022 in docs/DECISIONS.md). Photo capture, compression, upload, and atomic Examination finalization all exist and are tested. Remaining photo-adjacent work is limited to cleanup (Step 3B.5), DigitalOcean Spaces, and authorized private preview retrieval.
 
 Do not start implementing these blindly from assumptions.
 
