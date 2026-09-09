@@ -7,6 +7,7 @@ use App\Enums\ContainerStatus;
 use App\Enums\ExaminationLocation;
 use App\Enums\FormType;
 use App\Exceptions\PhotoUploadInvalid;
+use App\Exceptions\PhotoUploadStorageException;
 use App\Models\Examination;
 use App\Models\ExaminationPhoto;
 use App\Models\PhotoUpload;
@@ -14,9 +15,12 @@ use App\Models\PhotoUploadCleanupQueue;
 use App\Models\PhotoUploadSession;
 use App\Services\LocalPhotoUploadTransport;
 use App\Services\PhotoUploadCleanupService;
+use App\Services\PhotoUploadObjectPath;
 use App\Services\PhotoUploadService;
 use App\Services\PhotoUploadSessionResolver;
 use App\Services\PhotoUploadTransport;
+use App\Services\SpacesObjectClient;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -31,6 +35,7 @@ class PhotoUploadApiTest extends TestCase
         parent::setUp();
 
         Storage::fake('photo_uploads');
+        Storage::fake('photo_uploads_spaces');
     }
 
     // ----- allocation -----
@@ -102,6 +107,325 @@ class PhotoUploadApiTest extends TestCase
     }
 
     // ----- upload/verify -----
+
+    public function test_direct_mode_allocation_uses_spaces_staging_path_and_safe_mode(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+
+        $this->assertDatabaseHas('photo_uploads', [
+            'public_id' => $photoPublicId,
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => "photo-upload-staging/{$publicId}/{$photoPublicId}.jpg",
+        ]);
+
+        $response = $this->getJson("/photo-upload-sessions/{$publicId}", $this->authHeader($token));
+        $this->assertSame('direct', $response->json('photos.0.upload_mode'));
+    }
+
+    public function test_direct_mode_authorization_returns_presigned_staging_put(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($token),
+        );
+
+        $response->assertOk();
+        $this->assertSame('PUT', $response->json('method'));
+        $this->assertSame('image/jpeg', $response->json('required_headers.Content-Type'));
+        $this->assertSame(
+            "photo-upload-staging/{$publicId}/{$photoPublicId}.jpg",
+            parse_url($response->json('url'), PHP_URL_PATH) !== null
+                ? ltrim(parse_url($response->json('url'), PHP_URL_PATH), '/')
+                : null,
+        );
+    }
+
+    public function test_direct_authorization_response_is_never_cached(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($token),
+        );
+
+        $response->assertOk();
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
+    public function test_direct_authorization_expiry_never_exceeds_session_expiry(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct', 'zb-examine.photo_upload_presign_ttl_seconds' => 300]);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        PhotoUploadSession::where('public_id', $publicId)->update(['expires_at' => now()->addSeconds(30)]);
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($token),
+        );
+
+        $response->assertOk();
+        $expiresAt = CarbonImmutable::parse($response->json('expires_at'));
+        $this->assertTrue($expiresAt->lessThanOrEqualTo(now()->addSeconds(31)));
+    }
+
+    public function test_direct_authorization_rejects_wrong_token(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader('wrong-token'),
+        );
+
+        $response->assertStatus(401);
+        $response->assertJson(['code' => 'invalid_session']);
+    }
+
+    public function test_direct_authorization_rejects_a_foreign_photo(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicIdA, $tokenA] = $this->createSession();
+        [, $tokenB] = $this->createSession();
+        $photoPublicId = $this->allocate($publicIdA, $tokenA)->json('public_id');
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicIdA}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($tokenB),
+        );
+
+        $response->assertStatus(401);
+        $response->assertJson(['code' => 'invalid_session']);
+    }
+
+    public function test_direct_authorization_rejects_an_expired_session(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        $this->expireSession($publicId);
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($token),
+        );
+
+        $response->assertStatus(410);
+        $response->assertJson(['code' => 'session_expired']);
+    }
+
+    public function test_direct_authorization_rejects_a_finalized_session(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        $this->finalize($publicId);
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($token),
+        );
+
+        $response->assertStatus(409);
+        $response->assertJson(['code' => 'session_finalized']);
+    }
+
+    public function test_direct_authorization_rejects_an_already_verified_photo(): void
+    {
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        PhotoUpload::where('public_id', $photoPublicId)->update([
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => "photo-upload-staging/{$publicId}/{$photoPublicId}.jpg",
+            'verified_at' => now(),
+        ]);
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($token),
+        );
+
+        $response->assertStatus(409);
+        $response->assertJson(['code' => 'photo_state_conflict']);
+    }
+
+    public function test_direct_authorization_rejects_a_proxy_mode_row(): void
+    {
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+
+        $response = $this->postJson(
+            "/photo-upload-sessions/{$publicId}/photos/{$photoPublicId}/authorize",
+            [],
+            $this->authHeader($token),
+        );
+
+        $response->assertStatus(422);
+        $response->assertJson(['code' => 'invalid_photo']);
+    }
+
+    public function test_proxy_upload_endpoint_rejects_a_direct_mode_row(): void
+    {
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        PhotoUpload::where('public_id', $photoPublicId)->update([
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => "photo-upload-staging/{$publicId}/{$photoPublicId}.jpg",
+        ]);
+
+        $response = $this->uploadFile($publicId, $token, $photoPublicId, UploadedFile::fake()->image('photo.jpg'));
+
+        $response->assertStatus(422);
+        $response->assertJson(['code' => 'invalid_photo']);
+    }
+
+    public function test_proxy_allocation_reports_proxy_upload_mode_and_never_leaks_storage_fields(): void
+    {
+        [$publicId, $token] = $this->createSession();
+
+        $response = $this->allocate($publicId, $token);
+
+        $response->assertCreated();
+        $this->assertSame('proxy', $response->json('upload_mode'));
+        $this->assertArrayNotHasKey('storage_disk', $response->json());
+        $this->assertArrayNotHasKey('storage_path', $response->json());
+    }
+
+    public function test_direct_allocation_reports_direct_upload_mode_in_the_allocate_response(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+
+        $response = $this->allocate($publicId, $token);
+
+        $response->assertCreated();
+        $this->assertSame('direct', $response->json('upload_mode'));
+        $this->assertArrayNotHasKey('storage_disk', $response->json());
+        $this->assertArrayNotHasKey('storage_path', $response->json());
+    }
+
+    public function test_config_switch_after_allocation_does_not_reinterpret_an_existing_row(): void
+    {
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+
+        // A deploy/runtime toggle to direct mode must never retroactively
+        // change how an already-persisted proxy row is classified.
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+
+        $response = $this->getJson("/photo-upload-sessions/{$publicId}", $this->authHeader($token));
+        $this->assertSame('proxy', $response->json('photos.0.upload_mode'));
+
+        $upload = PhotoUpload::where('public_id', $photoPublicId)->firstOrFail();
+        $this->assertSame('photo_uploads', $upload->storage_disk);
+    }
+
+    public function test_direct_completion_seals_staging_object_and_stores_metadata(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        $this->bindFakeSpacesClient();
+
+        $response = $this->completePhoto($publicId, $token, $photoPublicId);
+
+        $response->assertOk();
+        $response->assertJson(['verified' => true, 'mime_type' => 'image/jpeg', 'upload_mode' => 'direct']);
+        $this->assertGreaterThan(0, $response->json('width'));
+        $this->assertGreaterThan(0, $response->json('height'));
+
+        $upload = PhotoUpload::where('public_id', $photoPublicId)->firstOrFail();
+        $this->assertNotNull($upload->verified_at);
+        $this->assertTrue(PhotoUploadObjectPath::isSealed($upload->storage_path));
+        $this->assertSame(0, PhotoUploadCleanupQueue::where('storage_disk', $upload->storage_disk)->count());
+    }
+
+    public function test_direct_completion_is_idempotent_on_retry(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        $this->bindFakeSpacesClient();
+
+        $first = $this->completePhoto($publicId, $token, $photoPublicId);
+        $second = $this->completePhoto($publicId, $token, $photoPublicId);
+
+        $first->assertOk();
+        $second->assertOk();
+        $this->assertSame($first->json('mime_type'), $second->json('mime_type'));
+        $this->assertSame(
+            PhotoUpload::where('public_id', $photoPublicId)->firstOrFail()->storage_path,
+            PhotoUpload::where('public_id', $photoPublicId)->firstOrFail()->storage_path,
+        );
+        $this->assertSame(1, PhotoUpload::where('public_id', $photoPublicId)->count());
+    }
+
+    public function test_direct_completion_seal_failure_leaves_candidate_cleanup_owned(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        $this->bindFakeSpacesClient(failPut: true);
+
+        try {
+            app(PhotoUploadService::class)->complete($publicId, $token, $photoPublicId);
+            $this->fail('Expected the sealed PUT to fail.');
+        } catch (PhotoUploadStorageException $exception) {
+            $this->assertSame('seal_failed', $exception->getErrorCode());
+        }
+
+        $upload = PhotoUpload::where('public_id', $photoPublicId)->firstOrFail();
+        $this->assertNull($upload->verified_at);
+        $this->assertTrue(PhotoUploadObjectPath::isStaging($upload->storage_path));
+
+        // The candidate intent created before the failed PUT remains, unstarted.
+        $intent = PhotoUploadCleanupQueue::where('storage_disk', $upload->storage_disk)->firstOrFail();
+        $this->assertNull($intent->deletion_started_at);
+    }
+
+    public function test_direct_completion_refuses_claim_when_candidate_deletion_already_started(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+
+        // The fake client marks the candidate's queue row as cleanup-started
+        // the moment the sealed PUT would occur, simulating cleanup racing in
+        // and winning ownership of the candidate object first.
+        $this->bindFakeSpacesClient(markCandidateStartedOnPut: true);
+
+        try {
+            app(PhotoUploadService::class)->complete($publicId, $token, $photoPublicId);
+            $this->fail('Expected the claim to be refused.');
+        } catch (PhotoUploadInvalid $exception) {
+            $this->assertSame('photo_state_conflict', $exception->getErrorCode());
+        }
+
+        $upload = PhotoUpload::where('public_id', $photoPublicId)->firstOrFail();
+        $this->assertNull($upload->verified_at);
+        $this->assertTrue(PhotoUploadObjectPath::isStaging($upload->storage_path));
+    }
 
     public function test_valid_jpeg_is_accepted_and_stored_privately(): void
     {
@@ -647,6 +971,58 @@ class PhotoUploadApiTest extends TestCase
     private function expireSession(string $publicId): void
     {
         PhotoUploadSession::where('public_id', $publicId)->update(['expires_at' => now()->subHour()]);
+    }
+
+    /** Binds a fake SpacesObjectClient so direct-mode completion never makes a real network call. */
+    private function bindFakeSpacesClient(bool $failPut = false, bool $markCandidateStartedOnPut = false): void
+    {
+        $bytes = $this->fakeJpegBytes();
+
+        $this->app->bind(SpacesObjectClient::class, fn () => new class($bytes, $failPut, $markCandidateStartedOnPut) implements SpacesObjectClient
+        {
+            public function __construct(
+                private readonly string $bytes,
+                private readonly bool $failPut,
+                private readonly bool $markCandidateStartedOnPut,
+            ) {}
+
+            public function head(string $storagePath): array
+            {
+                return ['size' => strlen($this->bytes), 'etag' => '"fixed-etag"'];
+            }
+
+            public function getToFile(string $storagePath, string $etag, string $destinationPath): array
+            {
+                file_put_contents($destinationPath, $this->bytes);
+
+                return ['size' => strlen($this->bytes), 'etag' => '"fixed-etag"'];
+            }
+
+            public function putFile(string $storagePath, string $sourcePath, int $fileSize, string $mimeType): void
+            {
+                if ($this->markCandidateStartedOnPut) {
+                    PhotoUploadCleanupQueue::where('storage_path', $storagePath)
+                        ->update(['deletion_started_at' => now()]);
+                }
+
+                if ($this->failPut) {
+                    throw new PhotoUploadStorageException('seal_failed');
+                }
+            }
+
+            public function deleteByPath(string $storagePath): void {}
+        });
+    }
+
+    private function fakeJpegBytes(): string
+    {
+        $image = imagecreatetruecolor(20, 10);
+        ob_start();
+        imagejpeg($image);
+        $bytes = ob_get_clean();
+        imagedestroy($image);
+
+        return $bytes;
     }
 
     private function createExamination(): Examination

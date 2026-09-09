@@ -2,6 +2,7 @@
 
 use App\Exceptions\PhotoUploadInvalid;
 use App\Exceptions\PhotoUploadSessionInvalid;
+use App\Exceptions\PhotoUploadStorageException;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -37,6 +38,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(fn (PhotoUploadInvalid $e) => response()->json([
             'message' => __('photo_upload.errors.'.$e->getErrorCode()),
+            'code' => $e->getErrorCode(),
+        ], $e->httpStatus()));
+
+        $exceptions->render(fn (PhotoUploadStorageException $e) => response()->json([
+            'message' => __('photo_upload.errors.direct_upload_failed'),
             'code' => $e->getErrorCode(),
         ], $e->httpStatus()));
     })->create();

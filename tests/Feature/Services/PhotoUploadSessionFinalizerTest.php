@@ -14,7 +14,9 @@ use App\Models\ExaminationPhoto;
 use App\Models\PhotoUpload;
 use App\Models\PhotoUploadSession;
 use App\Services\PhotoUploadSessionFinalizer;
+use App\Services\PhotoUploadTransport;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -121,6 +123,86 @@ class PhotoUploadSessionFinalizerTest extends TestCase
         $this->expectExceptionMessage('unverified_photo_pending');
 
         DB::transaction(fn () => $finalizer->lock($credentials));
+    }
+
+    public function test_lock_rejects_verified_direct_photo_still_in_staging_path(): void
+    {
+        $session = PhotoUploadSession::factory()->create();
+        PhotoUpload::factory()->for($session)->create([
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => 'photo-upload-staging/abc/def.jpg',
+            'verified_at' => now(),
+        ]);
+
+        $credentials = $this->credentialsFor($session);
+        $finalizer = app(PhotoUploadSessionFinalizer::class);
+
+        $this->expectException(PhotoUploadInvalid::class);
+        $this->expectExceptionMessage('unverified_photo_pending');
+
+        DB::transaction(fn () => $finalizer->lock($credentials));
+    }
+
+    public function test_lock_accepts_a_verified_direct_photo_with_a_sealed_path(): void
+    {
+        $session = PhotoUploadSession::factory()->create();
+        PhotoUpload::factory()->for($session)->create([
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => 'photo-uploads/abc/def/sealed-id.jpg',
+            'verified_at' => now(),
+        ]);
+
+        $credentials = $this->credentialsFor($session);
+        $finalizer = app(PhotoUploadSessionFinalizer::class);
+
+        DB::transaction(fn () => $finalizer->lock($credentials));
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_finalization_of_a_verified_direct_sealed_photo_performs_zero_storage_calls(): void
+    {
+        $session = PhotoUploadSession::factory()->create();
+        $upload = PhotoUpload::factory()->for($session)->create([
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => 'photo-uploads/abc/def/sealed-id.jpg',
+            'verified_at' => now(),
+        ]);
+
+        $this->app->bind(PhotoUploadTransport::class, fn () => new class implements PhotoUploadTransport
+        {
+            public function store(PhotoUpload $upload, UploadedFile $file): void
+            {
+                throw new \RuntimeException('finalization must never touch storage');
+            }
+
+            public function verify(PhotoUpload $upload): array
+            {
+                throw new \RuntimeException('finalization must never touch storage');
+            }
+
+            public function delete(PhotoUpload $upload): void
+            {
+                throw new \RuntimeException('finalization must never touch storage');
+            }
+
+            public function deleteByPath(string $storageDisk, string $storagePath): void
+            {
+                throw new \RuntimeException('finalization must never touch storage');
+            }
+        });
+
+        $credentials = $this->credentialsFor($session);
+        $finalizer = app(PhotoUploadSessionFinalizer::class);
+        $examination = $this->createExamination();
+
+        DB::transaction(function () use ($finalizer, $credentials, $examination): void {
+            $lockedSession = $finalizer->lock($credentials);
+            $finalizer->attachPhotos($examination, $lockedSession);
+        });
+
+        $photo = ExaminationPhoto::where('examination_id', $examination->id)->firstOrFail();
+        $this->assertSame($upload->storage_path, $photo->storage_path);
     }
 
     public function test_attach_photos_creates_contiguous_display_order_from_gapped_source_rows(): void

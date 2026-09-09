@@ -104,8 +104,13 @@ final class PhotoUploadSessionFinalizer
      */
     private function assertAllVerified(Collection $photos): void
     {
-        if ($photos->contains(fn (PhotoUpload $upload): bool => $upload->verified_at === null)) {
-            throw new PhotoUploadInvalid('unverified_photo_pending');
+        foreach ($photos as $upload) {
+            $isDirectStaging = PhotoUploadObjectPath::classifyStorage($upload->storage_disk, $upload->storage_path) === 'direct'
+                && PhotoUploadObjectPath::isStaging($upload->storage_path);
+
+            if ($upload->verified_at === null || $isDirectStaging) {
+                throw new PhotoUploadInvalid('unverified_photo_pending');
+            }
         }
     }
 }

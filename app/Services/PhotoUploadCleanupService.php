@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\PhotoUploadCleanupResult;
 use App\Models\ExaminationPhoto;
+use App\Models\PhotoUpload;
 use App\Models\PhotoUploadCleanupQueue;
 use App\Models\PhotoUploadSession;
 use Carbon\CarbonInterface;
@@ -138,75 +139,122 @@ final class PhotoUploadCleanupService
      * Before any physical delete, checks if ExaminationPhoto references the path;
      * blocks deletion and logs integrity conflict if found (defense-in-depth).
      *
-     * No DB locks held during storage deletion. Failed deletes leave queue row
-     * unresolved with updated retry metadata; will be retried next run.
+     * Each row is re-locked individually (`lockForUpdate()` by id) inside its own
+     * short transaction before the irreversible `deletion_started_at` marker is set.
+     * This is the same row (identified by storage_disk/storage_path) a direct-upload
+     * completion claim locks — whichever side locks first wins, and the loser sees
+     * the winner's already-committed outcome (see D026). No DB locks held during
+     * storage deletion. Failed deletes leave the queue row unresolved with updated
+     * retry metadata and a preserved marker; it will be retried next run.
      */
     public function processQueueUntilSettled(?CarbonInterface $now = null, ?int $limit = null): PhotoUploadCleanupResult
     {
         $now ??= now();
         $limit ??= (int) config('zb-examine.photo_cleanup_queue_limit', 500);
 
-        $queueRowsDue = 0;
         $objectsCleared = 0;
         $clearingFailures = 0;
         $integrityConflicts = 0;
         $failures = [];
 
-        // Load due queue rows, oldest-first
-        $dueRows = PhotoUploadCleanupQueue::query()
+        // Unlocked advisory selection: candidate IDs only, re-locked individually below.
+        $dueIds = PhotoUploadCleanupQueue::query()
             ->where('delete_after', '<=', $now)
             ->orderBy('delete_after')
             ->orderBy('id')
             ->limit($limit)
-            ->get();
+            ->pluck('id')
+            ->all();
 
-        $queueRowsDue = $dueRows->count();
+        $queueRowsDue = count($dueIds);
 
-        foreach ($dueRows as $row) {
+        foreach ($dueIds as $id) {
             try {
-                // Defense-in-depth: never delete a path if it's referenced by finalized evidence
-                $isEvidence = ExaminationPhoto::query()
-                    ->where('storage_disk', $row->storage_disk)
-                    ->where('storage_path', $row->storage_path)
-                    ->exists();
+                // This lock is the same row-level mutex a direct-completion claim takes on
+                // its candidate's queue row (by storage_disk/storage_path): whichever side
+                // locks first wins, and the loser observes the other's committed outcome.
+                $claim = DB::transaction(function () use ($id, $now): array {
+                    $row = PhotoUploadCleanupQueue::query()->whereKey($id)->lockForUpdate()->first();
 
-                if ($isEvidence) {
-                    // Block deletion; log high-severity conflict; leave row unresolved
-                    report(new Exception(
-                        'Integrity conflict: queued deletion intent references examination_photos: '
-                        ."disk={$row->storage_disk}"
-                    ));
-                    $row->update([
-                        'attempt_count' => $row->attempt_count + 1,
-                        'last_attempt_at' => $now,
-                        'last_failed_at' => $now,
-                        'last_error_code' => 'finalized_evidence_reference',
-                    ]);
+                    if (! $row || $row->delete_after > $now) {
+                        // Already claimed/removed by a concurrent owner, or no longer due.
+                        return ['action' => 'skip'];
+                    }
+
+                    // Defense-in-depth: never delete a path if it's referenced by finalized evidence
+                    // or by a live PhotoUpload row (e.g. a candidate a claim just took ownership of).
+                    $isEvidence = ExaminationPhoto::query()
+                        ->where('storage_disk', $row->storage_disk)
+                        ->where('storage_path', $row->storage_path)
+                        ->exists();
+
+                    $isLiveUpload = PhotoUpload::query()
+                        ->where('storage_disk', $row->storage_disk)
+                        ->where('storage_path', $row->storage_path)
+                        ->exists();
+
+                    if ($isEvidence || $isLiveUpload) {
+                        report(new Exception(
+                            'Integrity conflict: queued deletion intent references '
+                            .($isEvidence ? 'examination_photos' : 'photo_uploads').': '
+                            ."disk={$row->storage_disk}"
+                        ));
+                        $row->update([
+                            'attempt_count' => $row->attempt_count + 1,
+                            'last_attempt_at' => $now,
+                            'last_failed_at' => $now,
+                            'last_error_code' => $isEvidence ? 'finalized_evidence_reference' : 'live_upload_reference',
+                        ]);
+
+                        return ['action' => 'integrity_conflict'];
+                    }
+
+                    // The irreversible cleanup-ownership marker. Once committed, a
+                    // concurrent claim locking this same row must never take ownership
+                    // (see PhotoUploadService::completeDirect()). Never reset if already set.
+                    $row->update(['deletion_started_at' => $row->deletion_started_at ?? $now]);
+
+                    return ['action' => 'proceed', 'storage_disk' => $row->storage_disk, 'storage_path' => $row->storage_path];
+                });
+
+                if ($claim['action'] === 'skip') {
+                    continue;
+                }
+
+                if ($claim['action'] === 'integrity_conflict') {
                     $integrityConflicts++;
 
                     continue;
                 }
 
-                // Perform idempotent storage deletion outside any DB lock/transaction
-                $this->transport->deleteByPath(
-                    $row->storage_disk,
-                    $row->storage_path,
-                );
+                try {
+                    // Idempotent storage deletion outside any DB lock/transaction.
+                    $this->transport->deleteByPath($claim['storage_disk'], $claim['storage_path']);
 
-                // Storage delete succeeded (or object already absent); remove queue row
-                $row->delete();
-                $objectsCleared++;
+                    DB::transaction(function () use ($id): void {
+                        PhotoUploadCleanupQueue::query()->whereKey($id)->lockForUpdate()->first()?->delete();
+                    });
+                    $objectsCleared++;
+                } catch (Throwable $e) {
+                    // Storage delete failed; update retry metadata and leave row for next run.
+                    // The cleanup-start marker remains set so a concurrent claim cannot take ownership.
+                    report($e);
+                    DB::transaction(function () use ($id, $now, $e): void {
+                        $row = PhotoUploadCleanupQueue::query()->whereKey($id)->lockForUpdate()->first();
+                        $row?->update([
+                            'deletion_started_at' => $row->deletion_started_at ?? $now,
+                            'attempt_count' => $row->attempt_count + 1,
+                            'last_attempt_at' => $now,
+                            'last_failed_at' => $now,
+                            'last_error_code' => $this->sanitizeErrorCode($e),
+                        ]);
+                    });
+                    $clearingFailures++;
+                    $failures[] = "Queue row {$id}: ".$this->sanitizeErrorCode($e);
+                }
             } catch (Throwable $e) {
-                // Storage delete failed; update retry metadata and leave row for next run
                 report($e);
-                $row->update([
-                    'attempt_count' => $row->attempt_count + 1,
-                    'last_attempt_at' => $now,
-                    'last_failed_at' => $now,
-                    'last_error_code' => $this->sanitizeErrorCode($e),
-                ]);
-                $clearingFailures++;
-                $failures[] = "Queue row {$row->id}: ".$this->sanitizeErrorCode($e);
+                $failures[] = "Queue row {$id}: ".$this->sanitizeErrorCode($e);
             }
         }
 
@@ -249,10 +297,11 @@ final class PhotoUploadCleanupService
 
         if (DB::connection()->getDriverName() === 'mysql') {
             DB::statement(
-                "INSERT INTO {$table} (storage_disk, storage_path, source_session_public_id, delete_after, attempt_count, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 0, ?, ?)
+                "INSERT INTO {$table} (storage_disk, storage_path, source_session_public_id, delete_after, deletion_started_at, attempt_count, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, NULL, 0, ?, ?)
                  ON DUPLICATE KEY UPDATE
                     delete_after = IF(delete_after < VALUES(delete_after), VALUES(delete_after), delete_after),
+                    deletion_started_at = IFNULL(deletion_started_at, VALUES(deletion_started_at)),
                     updated_at = VALUES(updated_at)",
                 [$storageDisk, $storagePath, $sourceSessionPublicId, $deadline, $timestamp, $timestamp],
             );

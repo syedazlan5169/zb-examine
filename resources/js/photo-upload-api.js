@@ -32,6 +32,69 @@ function extractSignal(optionsOrSignal) {
     return optionsOrSignal;
 }
 
+function uncertainPutError(status) {
+    const error = normalizeErrorResponse(null, status);
+    error.directPutUncertain = true;
+
+    return error;
+}
+
+function putDirectObject(authorization, file, signal) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        let settled = false;
+
+        const cleanup = () => {
+            signal?.removeEventListener('abort', abort);
+        };
+
+        const settle = (callback, value) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            cleanup();
+            callback(value);
+        };
+
+        const abort = () => {
+            xhr.abort();
+        };
+
+        xhr.open(authorization.method, authorization.url, true);
+        xhr.withCredentials = false;
+        xhr.timeout = 30_000;
+
+        Object.entries(authorization.required_headers || {}).forEach(([name, value]) => {
+            xhr.setRequestHeader(name, value);
+        });
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                settle(resolve, { status: 'stored' });
+                return;
+            }
+
+            settle(reject, uncertainPutError(xhr.status));
+        };
+        xhr.onerror = () => settle(reject, uncertainPutError(xhr.status || 0));
+        xhr.ontimeout = () => settle(reject, uncertainPutError(xhr.status || 0));
+        xhr.onabort = () => {
+            const error = new DOMException('The upload was aborted.', 'AbortError');
+            settle(reject, error);
+        };
+
+        if (signal?.aborted) {
+            xhr.abort();
+            return;
+        }
+
+        signal?.addEventListener('abort', abort, { once: true });
+        xhr.send(file);
+    });
+}
+
 export async function requestJson(url, options = {}) {
     const method = (options.method || 'GET').toUpperCase();
     const headers = { Accept: 'application/json', ...(options.headers || {}) };
@@ -98,12 +161,26 @@ export async function allocatePhoto(publicId, token, options = {}) {
 }
 
 export async function uploadPhoto(publicId, token, photoPublicId, file, options = {}) {
+    if (options.uploadMode === 'direct') {
+        const authorization = await authorizePhoto(publicId, token, photoPublicId, options);
+
+        return putDirectObject(authorization, file, extractSignal(options));
+    }
+
     const formData = new FormData();
     formData.append('photo', file, file.name || 'photo.jpg');
 
     return requestJson(`/photo-upload-sessions/${publicId}/photos/${photoPublicId}/upload`, {
         method: 'POST',
         body: formData,
+        headers: sessionHeaders(token),
+        signal: extractSignal(options),
+    });
+}
+
+export async function authorizePhoto(publicId, token, photoPublicId, options = {}) {
+    return requestJson(`/photo-upload-sessions/${publicId}/photos/${photoPublicId}/authorize`, {
+        method: 'POST',
         headers: sessionHeaders(token),
         signal: extractSignal(options),
     });

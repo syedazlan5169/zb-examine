@@ -24,6 +24,7 @@ class PhotoUploadCleanupQueue extends Model
         'storage_path',
         'source_session_public_id',
         'delete_after',
+        'deletion_started_at',
         'attempt_count',
         'last_attempt_at',
         'last_failed_at',
@@ -34,6 +35,7 @@ class PhotoUploadCleanupQueue extends Model
     {
         return [
             'delete_after' => 'datetime',
+            'deletion_started_at' => 'datetime',
             'last_attempt_at' => 'datetime',
             'last_failed_at' => 'datetime',
         ];

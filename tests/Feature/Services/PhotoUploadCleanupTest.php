@@ -47,6 +47,28 @@ class PhotoUploadCleanupTest extends TestCase
         $this->assertNull($session->fresh());
     }
 
+    public function test_started_queue_row_keeps_its_irreversible_marker_on_upsert(): void
+    {
+        $startedAt = now()->subMinute();
+        PhotoUploadCleanupQueue::create([
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => 'photo-uploads/test/abc.jpg',
+            'delete_after' => now()->addHour(),
+            'deletion_started_at' => $startedAt,
+        ]);
+
+        app(PhotoUploadCleanupService::class)->stageDeletionIntent(
+            'photo_uploads_spaces',
+            'photo-uploads/test/abc.jpg',
+            'session-public',
+            now()->addMinutes(5),
+        );
+
+        $row = PhotoUploadCleanupQueue::where('storage_path', 'photo-uploads/test/abc.jpg')->firstOrFail();
+        $this->assertNotNull($row->deletion_started_at);
+        $this->assertSame($startedAt->timestamp, $row->deletion_started_at->timestamp);
+    }
+
     public function test_single_verified_photo_staged(): void
     {
         $session = $this->createExpiredUnfinalizedSession(photoCount: 1);
@@ -421,6 +443,28 @@ class PhotoUploadCleanupTest extends TestCase
 
         $this->assertEquals(0, $result->integrityConflicts);
         $this->assertEquals(1, $result->objectsCleared);
+    }
+
+    public function test_a_live_photo_upload_row_referencing_the_same_path_blocks_deletion(): void
+    {
+        Storage::disk('photo_uploads')->put('live-upload.jpg', 'content');
+        PhotoUpload::factory()->create([
+            'storage_disk' => 'photo_uploads',
+            'storage_path' => 'live-upload.jpg',
+        ]);
+        PhotoUploadCleanupQueue::create([
+            'storage_disk' => 'photo_uploads',
+            'storage_path' => 'live-upload.jpg',
+            'delete_after' => now()->subMinute(),
+        ]);
+
+        $result = $this->service->processQueueUntilSettled(now: now());
+
+        $this->assertEquals(1, $result->integrityConflicts);
+        $this->assertEquals(0, $result->objectsCleared);
+        $this->assertTrue(Storage::disk('photo_uploads')->exists('live-upload.jpg'));
+        $intent = PhotoUploadCleanupQueue::firstOrFail();
+        $this->assertSame('live_upload_reference', $intent->last_error_code);
     }
 
     // ========== Storage Failure Handling ==========

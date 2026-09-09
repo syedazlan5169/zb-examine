@@ -22,6 +22,8 @@ Route::get('/photo-upload-sessions/{sessionPublicId}', [PhotoUploadSessionContro
     ->name('photo-upload-sessions.show');
 Route::post('/photo-upload-sessions/{sessionPublicId}/photos', [PhotoUploadController::class, 'store'])
     ->name('photo-upload-sessions.photos.store');
+Route::post('/photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/authorize', [PhotoUploadController::class, 'authorize'])
+    ->name('photo-upload-sessions.photos.authorize');
 Route::post('/photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/upload', [PhotoUploadController::class, 'upload'])
     ->name('photo-upload-sessions.photos.upload');
 Route::post('/photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/complete', [PhotoUploadController::class, 'complete'])

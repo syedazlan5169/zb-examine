@@ -1,6 +1,6 @@
 # ZB Examine — Current State
 
-Last updated: 2026-09-09
+Last updated: 2026-09-10
 
 ## Project Status
 
@@ -22,8 +22,16 @@ staging-only presigned PUT capabilities, HEAD and conditionally GET staging
 objects, validate actual JPEG bytes through temporary files, and upload the
 retained verified snapshot through a server-authenticated PUT to a fresh sealed
 candidate. The live
-photo-upload routes, PhotoUpload ownership claim, browser direct-upload flow, and
-Examination finalization are intentionally unchanged and deferred to Step 3B.6B.
+photo-upload routes, direct staging authorization, sealed-candidate ownership
+claim, browser direct-upload flow, and the staging finalization guard are now
+integrated by Step 3B.6B. The proxy workflow remains unchanged.
+
+The direct browser flow uses a staging-only XMLHttpRequest with the exact signed
+method and headers, `withCredentials = false`, and no application credentials.
+An uncertain PUT outcome is completed first. A verified completion ends the
+attempt; only stable `upload_not_ready` or `source_changed` errors allow one
+fresh authorization and one retry of the current optimized JPEG. Explicit user
+cancellation never enters this recovery path. Step 3B.6C remains pending.
 
 Real provider proof against `space-probono-apps` in SGP1 established presigned
 staging PUT, overwrite behavior, HEAD, conditional GET with `If-Match`, and

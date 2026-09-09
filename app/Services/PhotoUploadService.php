@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Data\DirectPhotoUploadAuthorization;
 use App\Exceptions\PhotoUploadInvalid;
 use App\Models\PhotoUpload;
+use App\Models\PhotoUploadCleanupQueue;
 use App\Models\PhotoUploadSession;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +18,7 @@ final class PhotoUploadService
     public function __construct(
         private readonly PhotoUploadSessionResolver $sessions,
         private readonly PhotoUploadTransport $transport,
+        private readonly ?SpacesPhotoUploadSealer $sealer = null,
     ) {}
 
     /**
@@ -34,12 +37,18 @@ final class PhotoUploadService
             }
 
             $publicId = (string) Str::ulid();
+            $mode = config('zb-examine.photo_upload_mode', 'proxy');
+            $isDirect = $mode === 'direct';
+            $disk = $isDirect ? config('zb-examine.photo_upload_direct_disk', 'photo_uploads_spaces') : config('zb-examine.photo_upload_disk', 'photo_uploads');
+            $path = $isDirect
+                ? PhotoUploadObjectPath::staging($session->public_id, $publicId)
+                : "photo-uploads/{$session->public_id}/{$publicId}.jpg";
 
             $upload = new PhotoUpload;
             $upload->photo_upload_session_id = $session->id;
             $upload->public_id = $publicId;
-            $upload->storage_disk = config('zb-examine.photo_upload_disk');
-            $upload->storage_path = "photo-uploads/{$session->public_id}/{$publicId}.jpg";
+            $upload->storage_disk = $disk;
+            $upload->storage_path = $path;
             $upload->display_order = $count + 1;
             $upload->save();
 
@@ -86,6 +95,10 @@ final class PhotoUploadService
             return $upload; // duplicate/retried completion: idempotent, unchanged
         }
 
+        if (PhotoUploadObjectPath::isDirectStorage($upload->storage_disk, $upload->storage_path)) {
+            return $this->completeDirect($sessionPublicId, $token, $photoPublicId, $upload);
+        }
+
         // Not caught here: a verification failure leaves the row pending and
         // the object untouched, exactly as if this request had never happened.
         $metadata = $this->transport->verify($upload);
@@ -108,6 +121,73 @@ final class PhotoUploadService
 
             return $upload;
         });
+    }
+
+    private function completeDirect(string $sessionPublicId, string $token, string $photoPublicId, PhotoUpload $upload): PhotoUpload
+    {
+        $sealer = $this->sealer ?? app(SpacesPhotoUploadSealer::class);
+        $source = $sealer->verifyStaging($upload->storage_path);
+        $candidatePath = PhotoUploadObjectPath::sealed($sessionPublicId, $photoPublicId);
+        $cleanup = app(PhotoUploadCleanupService::class);
+        $cleanup->stageDeletionIntent($upload->storage_disk, $candidatePath, $sessionPublicId);
+
+        try {
+            $sealer->seal($source, $candidatePath);
+
+            return DB::transaction(function () use ($sessionPublicId, $token, $photoPublicId, $candidatePath, $source): PhotoUpload {
+                $session = $this->sessions->resolveLocked($sessionPublicId, $token);
+                $upload = $this->findOwned($session, $photoPublicId);
+
+                if ($upload->verified_at !== null) {
+                    return $upload;
+                }
+
+                $candidate = PhotoUploadCleanupQueue::query()
+                    ->where('storage_disk', $upload->storage_disk)
+                    ->where('storage_path', $candidatePath)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $candidate || $candidate->deletion_started_at !== null) {
+                    throw new PhotoUploadInvalid('photo_state_conflict');
+                }
+
+                $upload->storage_path = $candidatePath;
+                $upload->mime_type = $source->mimeType;
+                $upload->file_size = $source->fileSize;
+                $upload->width = $source->width;
+                $upload->height = $source->height;
+                $upload->verified_at = now();
+                $upload->save();
+                $candidate->delete();
+
+                return $upload;
+            });
+        } finally {
+            $source->release();
+        }
+    }
+
+    public function authorizeStaging(string $sessionPublicId, string $token, string $photoPublicId): DirectPhotoUploadAuthorization
+    {
+        $session = $this->sessions->resolve($sessionPublicId, $token);
+        $this->sessions->assertNotFinalized($session);
+
+        $upload = $this->findOwned($session, $photoPublicId);
+
+        if ($upload->verified_at !== null) {
+            throw new PhotoUploadInvalid('photo_state_conflict');
+        }
+
+        if (! PhotoUploadObjectPath::isDirectStorage($upload->storage_disk, $upload->storage_path)) {
+            throw new PhotoUploadInvalid('invalid_photo');
+        }
+
+        $requestedExpiry = now()->addSeconds((int) config('zb-examine.photo_upload_presign_ttl_seconds', 300));
+        // Never authorize staging writes past the point the session itself stops being usable.
+        $expiresAt = $requestedExpiry->min($session->expires_at);
+
+        return app(DirectPhotoUploadAuthorizer::class)->authorizeStaging($upload->storage_path, $expiresAt);
     }
 
     /**
@@ -166,6 +246,12 @@ final class PhotoUploadService
 
         if ($upload->verified_at !== null) {
             throw new PhotoUploadInvalid('photo_state_conflict');
+        }
+
+        // The proxy multipart endpoint must never write bytes for a direct-mode
+        // row: that would silently perform a real Spaces-disk storage call here.
+        if (PhotoUploadObjectPath::isDirectStorage($upload->storage_disk, $upload->storage_path)) {
+            throw new PhotoUploadInvalid('invalid_photo');
         }
 
         return $upload;

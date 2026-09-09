@@ -18,4 +18,13 @@ final class PhotoUploadStorageException extends RuntimeException
     {
         return $this->errorCode;
     }
+
+    public function httpStatus(): int
+    {
+        return match ($this->errorCode) {
+            'source_changed' => 409,
+            'invalid_image', 'object_too_large' => 422,
+            default => 503,
+        };
+    }
 }

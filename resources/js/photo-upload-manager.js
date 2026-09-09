@@ -492,7 +492,22 @@ export class PhotoUploadManager {
             }
 
             const optimizedFile = new File([optimized.blob], 'photo.jpg', { type: 'image/jpeg' });
-            await uploadPhoto(this.session.public_id, this.session.token, allocated.public_id, optimizedFile, { signal: photo.abortController?.signal });
+            let completed;
+
+            try {
+                await uploadPhoto(this.session.public_id, this.session.token, allocated.public_id, optimizedFile, {
+                    signal: photo.abortController?.signal,
+                    uploadMode: allocated.upload_mode,
+                });
+            } catch (error) {
+                if (allocated.upload_mode !== 'direct' || !error?.directPutUncertain || photo.removalRequested) {
+                    throw error;
+                }
+
+                photo.state = 'completing';
+                this.render();
+                completed = await this.completeAfterUncertainDirectPut(photo, optimizedFile);
+            }
 
             if (!this.isCurrent(photo, generation)) {
                 await this.cleanupAllocatedPhoto(photo.backendPublicId);
@@ -507,7 +522,7 @@ export class PhotoUploadManager {
                 return;
             }
 
-            const completed = await completePhoto(this.session.public_id, this.session.token, allocated.public_id, { signal: photo.abortController?.signal });
+            completed ??= await completePhoto(this.session.public_id, this.session.token, allocated.public_id, { signal: photo.abortController?.signal });
 
             if (!this.isCurrent(photo, generation)) {
                 await this.cleanupAllocatedPhoto(photo.backendPublicId);
@@ -541,6 +556,28 @@ export class PhotoUploadManager {
             if (this.isCurrent(photo, generation)) {
                 this.render();
             }
+        }
+    }
+
+    async completeAfterUncertainDirectPut(photo, optimizedFile) {
+        try {
+            return await completePhoto(this.session.public_id, this.session.token, photo.backendPublicId, {
+                signal: photo.abortController?.signal,
+            });
+        } catch (error) {
+            if (!['upload_not_ready', 'source_changed'].includes(error?.code)) {
+                throw error;
+            }
+
+            // uploadPhoto() obtains a fresh authorization; the failed signed URL is never reused.
+            await uploadPhoto(this.session.public_id, this.session.token, photo.backendPublicId, optimizedFile, {
+                signal: photo.abortController?.signal,
+                uploadMode: 'direct',
+            });
+
+            return completePhoto(this.session.public_id, this.session.token, photo.backendPublicId, {
+                signal: photo.abortController?.signal,
+            });
         }
     }
 

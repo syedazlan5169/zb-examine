@@ -66,6 +66,30 @@ claim. Candidate ownership integration, staging-path ownership transfer,
 production authorization routing, direct client flow, and database claims remain
 deferred to Step 3B.6B.
 
+## D026 - Direct Upload Ownership Handoff
+
+Step 3B.6B integrates direct uploads without changing the proxy workflow. The
+browser receives a presigned PUT only for the persisted staging path. Completion
+verifies the staging object, creates a durable deletion intent for a fresh sealed
+candidate before the server-authenticated PUT, then claims that candidate under
+the session-row lock. The claim refuses any candidate whose cleanup worker has
+set `deletion_started_at`; that timestamp is the irreversible cleanup ownership
+boundary. A failed sealed PUT leaves its candidate intent available for retry or
+deferred deletion.
+
+Finalization rejects verified direct rows that still point at staging. Upload mode
+is derived from the persisted disk and path, never from current runtime mode
+configuration, so old proxy rows cannot be reinterpreted as Spaces objects.
+
+When the browser receives an uncertain direct PUT outcome, the manager calls the
+application completion endpoint before requesting another staging authorization.
+If completion succeeds, the existing provider write is accepted. Only
+`upload_not_ready` or `source_changed` permits one fresh authorization and one
+retry of the same optimized JPEG; session, photo, and other authoritative state
+errors stop the attempt. Explicit user cancellation remains an abort/remove path
+and never triggers completion merely because the transport abort is technically
+uncertain.
+
 `photo_uploads` remains the existing local logical disk. The new
 `photo_uploads_spaces` disk is separate so persisted local rows in
 `photo_uploads`, `examination_photos`, and the cleanup queue are never silently
