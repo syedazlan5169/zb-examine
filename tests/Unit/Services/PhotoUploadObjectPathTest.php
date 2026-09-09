@@ -29,4 +29,25 @@ class PhotoUploadObjectPathTest extends TestCase
         $this->assertTrue(PhotoUploadObjectPath::isSealed($first));
         $this->assertFalse(PhotoUploadObjectPath::isStaging($first));
     }
+
+    public function test_local_finalized_path_accepts_only_the_canonical_proxy_path(): void
+    {
+        $path = 'photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04.jpg';
+
+        $this->assertTrue(PhotoUploadObjectPath::isLocalFinalized($path));
+    }
+
+    public function test_local_finalized_path_rejects_noncanonical_and_unsafe_forms(): void
+    {
+        foreach ([
+            '',
+            'photo-upload-staging/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04.jpg',
+            'photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04/abcdef.jpg',
+            '/photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04.jpg',
+            'photo-uploads/../private.jpg',
+            "photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04.jpg\0other",
+        ] as $path) {
+            $this->assertFalse(PhotoUploadObjectPath::isLocalFinalized($path));
+        }
+    }
 }

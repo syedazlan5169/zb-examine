@@ -4,6 +4,14 @@ namespace App\Services;
 
 final class PhotoUploadObjectPath
 {
+    public static function isLocalFinalized(string $storagePath): bool
+    {
+        return preg_match(
+            '#^photo-uploads/[0-9A-HJKMNP-TV-Z]{26}/[0-9A-HJKMNP-TV-Z]{26}\.jpg$#',
+            $storagePath,
+        ) === 1;
+    }
+
     public static function classifyStorage(string $storageDisk, string $storagePath): string
     {
         if ($storageDisk === config('zb-examine.photo_upload_direct_disk', 'photo_uploads_spaces') && (self::isStaging($storagePath) || self::isSealed($storagePath))) {
