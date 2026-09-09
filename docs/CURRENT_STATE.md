@@ -31,7 +31,14 @@ method and headers, `withCredentials = false`, and no application credentials.
 An uncertain PUT outcome is completed first. A verified completion ends the
 attempt; only stable `upload_not_ready` or `source_changed` errors allow one
 fresh authorization and one retry of the current optimized JPEG. Explicit user
-cancellation never enters this recovery path. Step 3B.6C remains pending.
+cancellation never enters this recovery path.
+
+Step 3B.6C status: **Core desktop E2E QA PASSED. Extended/mobile resilience QA
+DEFERRED.** The direct browser flow, real Spaces ownership handoff, one-photo
+finalization, three-photo submission, ten-photo limit, and one refresh/active-
+upload recovery scenario were verified. The remaining manual coverage is listed
+in the QA checkpoint below; the automated/provider proofs from Step 3B.6B remain
+valid.
 
 Real provider proof against `space-probono-apps` in SGP1 established presigned
 staging PUT, overwrite behavior, HEAD, conditional GET with `If-Match`, and
@@ -50,6 +57,109 @@ SHA-256 was
 sealed object matched A rather than B. An unauthenticated HTTPS GET to the sealed
 object returned HTTP 403, proving the sealed object remained private. Credentials
 remain only in local environment configuration and were not committed.
+
+## Step 3B.6C Real QA Checkpoint
+
+Status: **Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
+
+The first real direct browser completion exposed a missing local migration:
+`2026_09_10_000001_add_deletion_started_at_to_photo_upload_cleanup_queue_table`.
+After the migration was run, completion could be resent successfully. That
+session also exposed a production bug: `completeDirect()` moved the
+`PhotoUpload` row from staging to a sealed path and removed the winner
+candidate intent, but did not stage cleanup ownership for the old staging path.
+The sealed object was correctly owned while the old staging object remained in
+Spaces without a cleanup-queue owner. Commit `28bbccd` (`fix: preserve staging
+cleanup ownership on direct completion`) corrected this without changing the
+storage transaction boundary.
+
+The fixed transaction locks the session and fresh pending row, captures the old
+staging disk/path, locks the sealed candidate intent, stages the old staging
+cleanup intent, persists the sealed path and authoritative metadata including
+`verified_at`, removes the winner candidate intent, and commits. No storage
+operation occurs inside the transaction. On rollback, the staging intent rolls
+back, the upload remains pending and staging-owned, and the candidate intent
+remains durable.
+
+Automated validation after the fix:
+
+```text
+regular suite:         265 tests, 779 assertions, 0 failures
+real MySQL concurrency: 27 tests, 197 assertions, 0 failures
+```
+
+Concurrency assertions check ownership roles and exact paths rather than brittle
+global cleanup-row counts.
+
+### Core desktop and provider evidence
+
+Fresh fixed-code one-photo proof used an Incognito browser session. The observed
+sequence was: session creation `201`, allocation `201`, staging authorization
+`200`, Spaces CORS preflight `200`, browser XHR PUT `200`, and Laravel complete
+`200`. The UI ended at `Uploaded`.
+
+The direct Spaces PUT contained `Content-Type: image/jpeg` and no Laravel
+Authorization, CSRF, or Cookie header. The authorization response exposed only
+transient staging authorization; it exposed neither the sealed path nor raw
+Spaces credentials.
+
+Verified one-photo state used `photo_uploads_spaces`, a sealed `photo-uploads/...`
+path, JPEG metadata, `1024 x 1024`, file size `182468`, and non-null
+`verified_at`. Exactly one old staging cleanup intent existed with
+`deletion_started_at = NULL` and `attempt_count = 0`; no cleanup intent existed
+for the claimed sealed winner. Both sealed and staging objects temporarily
+existed at size `182468`, as expected before the settling window elapsed.
+
+The same photo was finalized into examination `ZB-260910-0001` (`id = 10`).
+`ExaminationPhoto` exactly matched the sealed `PhotoUpload` path and metadata,
+with display order `1`; no staging path appeared in finalized evidence. An
+unauthenticated HTTPS request for the sealed object returned HTTP/2 `403`.
+
+Three-photo proof succeeded as `ZB-260910-0002`: three distinct sealed paths,
+display orders `1, 2, 3`, and `photo_uploads_spaces` for every row. Ten-photo
+stress proof succeeded as `ZB-260910-0003`: ten distinct sealed paths, display
+orders `1` through `10`; photo 11 was rejected while the existing ten remained
+intact and the UI remained responsive.
+
+With the browser throttled to 3G, a refresh during active uploads recovered two
+photos as `Uploaded` and one as `Needs reselection` with `Complete/Re-check`.
+Clicking `Complete/Re-check` without reselecting the file changed that row to
+`Uploaded`. This is evidence for completion-first recovery only; it is not a
+claim that the broader mobile fault matrix is complete.
+
+The historical staging object created before the fix was manually reconciled:
+
+```text
+session: 01M23TPS6S6WKPTEYTH5ZTMPA2
+photo:   01M23TPS795HQQ7ZP43D4PJ1T0
+```
+
+Only its exact cleanup intent was made due. Direct invocation of
+`PhotoUploadCleanupService::processQueueUntilSettled(now(), 1)` reported
+`queueRowsDue = 1`, `objectsCleared = 1`, `clearingFailures = 0`,
+`integrityConflicts = 0`, and no failures. The historical queue row and staging
+object were absent afterward; the already-owned sealed evidence was not deleted.
+
+### Deferred manual QA
+
+The following remain intentionally deferred and must not be represented as
+covered by the desktop pass:
+
+- real phone/LAN direct-upload QA and phone CORS exact-origin QA;
+- additional locale-switch recovery and form-validation recovery;
+- pending and verified removal scenarios;
+- explicit cancellation during PUT;
+- additional uncertain-PUT browser fault injection;
+- abandoned-session cleanup;
+- broader browser/server log privacy audit;
+- optional CORS-failure and related manual edge tests.
+
+After direct QA, the local default was restored to `PHOTO_UPLOAD_MODE=proxy` and
+Laravel config cache was cleared. Runtime values are `photo_upload_mode=proxy`,
+`photo_upload_disk=photo_uploads`, and
+`photo_upload_direct_disk=photo_uploads_spaces`. `.env` remains local and
+untracked; direct Spaces credentials/config remain available locally but are not
+documented here.
 
 Step 3B.5 provides `photo-uploads:cleanup`, an hourly scheduled command with dry-run and batch-limit options. It stages expired unfinalized sessions into the durable cleanup queue, defers physical deletion through the configured photo transport, protects finalized evidence, and integrates explicit photo removal with the same queue. Historical storage orphans from before this queue existed are intentionally outside the scope of this implementation because the application has no authoritative filesystem inventory.
 
@@ -513,7 +623,7 @@ Agent submission history
 Officer search/detail interface
 ```
 
-The overall photo-upload architecture is approved and now fully integrated end-to-end (see D020/D021/D022/D024 in docs/DECISIONS.md). Photo capture, upload, atomic Examination finalization, and durable Step 3B.5 cleanup all exist and are tested. Remaining photo-adjacent work is limited to DigitalOcean Spaces, authorized private preview retrieval, and the separate future policy for pruning finalized upload metadata.
+The overall photo-upload architecture is approved and integrated end-to-end (see D020/D021/D022/D024/D025/D026 in docs/DECISIONS.md). Photo capture, proxy/direct upload, atomic Examination finalization, and durable cleanup all exist and are tested. Remaining photo-adjacent work includes authorized private preview retrieval, the separate future policy for pruning finalized upload metadata, and the deferred manual/mobile QA listed in the Step 3B.6C checkpoint.
 
 Do not start implementing these blindly from assumptions.
 

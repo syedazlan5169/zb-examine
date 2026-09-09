@@ -119,7 +119,22 @@ documented or committed.
 
 Examination finalization remains DB-only and performs zero storage calls. Step
 3B.6B, including candidate-intent integration and transactional ownership claim,
-is not implemented.
+is implemented. Core desktop real-browser and provider QA then found one missing
+staging-intent transition in the implementation: the sealed ownership claim
+removed the winner candidate intent but initially left the old staging object
+without a durable cleanup owner. Commit `28bbccd` (`fix: preserve staging
+cleanup ownership on direct completion`) corrected the implementation to match
+the ownership invariant already defined here. The fix stages the old staging
+intent inside the same transaction as the sealed ownership update, authoritative
+metadata/`verified_at` persistence, and winner candidate-intent removal; storage
+operations remain outside that transaction. Rollback removes the uncommitted
+staging intent while preserving the pending staging-owned row and durable
+candidate intent.
+
+Core desktop E2E QA passed. Extended/mobile resilience QA remains deferred;
+automated/provider proofs remain valid. See the consolidated Step 3B.6C QA
+checkpoint in `docs/CURRENT_STATE.md` for the evidence and deferred manual
+coverage.
 
 ## D024 - Durable Photo Upload Cleanup
 
