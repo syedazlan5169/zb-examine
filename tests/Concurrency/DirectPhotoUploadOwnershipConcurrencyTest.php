@@ -372,12 +372,17 @@ class DirectPhotoUploadOwnershipConcurrencyTest extends TestCase
         $this->assertNotNull($winner->verified_at);
         $this->assertTrue(PhotoUploadObjectPath::isSealed($winner->storage_path));
 
-        // Exactly one sealed candidate became authoritative; the loser's own
-        // candidate remains a cleanup-owned, unstarted intent.
-        $remainingIntents = PhotoUploadCleanupQueue::where('storage_disk', $winner->storage_disk)->get();
-        $this->assertCount(1, $remainingIntents);
-        $this->assertNotSame($winner->storage_path, $remainingIntents->first()->storage_path);
-        $this->assertNull($remainingIntents->first()->deletion_started_at);
+        // The winner owns the sealed path. The old staging path and the
+        // loser's sealed candidate remain cleanup-owned and unstarted.
+        $intents = PhotoUploadCleanupQueue::where('source_session_public_id', $session->public_id)->get();
+        $this->assertCount(2, $intents);
+        $this->assertCount(1, $intents->where('storage_path', $upload->storage_path));
+        $sealedIntents = $intents->filter(fn (PhotoUploadCleanupQueue $intent): bool => PhotoUploadObjectPath::isSealed($intent->storage_path));
+        $this->assertCount(1, $sealedIntents);
+        $this->assertNotSame($winner->storage_path, $sealedIntents->first()->storage_path);
+        $this->assertTrue($intents->every(fn (PhotoUploadCleanupQueue $intent): bool => $intent->deletion_started_at === null));
+        $this->assertTrue($intents->contains(fn (PhotoUploadCleanupQueue $intent): bool => PhotoUploadObjectPath::isStaging($intent->storage_path)));
+        $this->assertNotSame($winner->storage_path, $upload->storage_path);
 
         $this->cleanupDirectory($directory);
     }
@@ -504,11 +509,12 @@ class DirectPhotoUploadOwnershipConcurrencyTest extends TestCase
 
         DB::reconnect('mysql');
         $this->assertNull(PhotoUpload::find($upload->id));
-        $intents = PhotoUploadCleanupQueue::all();
-        $this->assertCount(1, $intents);
-        $this->assertTrue(PhotoUploadObjectPath::isSealed($intents->first()->storage_path));
-        $this->assertNotSame($stagingPath, $intents->first()->storage_path);
-        $this->assertNull($intents->first()->deletion_started_at);
+        $intents = PhotoUploadCleanupQueue::where('source_session_public_id', $session->public_id)->get();
+        $this->assertCount(2, $intents);
+        $this->assertCount(1, $intents->where('storage_path', $stagingPath));
+        $sealedIntents = $intents->filter(fn (PhotoUploadCleanupQueue $intent): bool => PhotoUploadObjectPath::isSealed($intent->storage_path));
+        $this->assertCount(1, $sealedIntents);
+        $this->assertTrue($intents->every(fn (PhotoUploadCleanupQueue $intent): bool => $intent->deletion_started_at === null));
 
         $this->cleanupDirectory($directory);
     }
@@ -587,7 +593,10 @@ class DirectPhotoUploadOwnershipConcurrencyTest extends TestCase
         DB::reconnect('mysql');
         $this->assertNull(PhotoUploadSession::find($session->id));
         $this->assertNull(PhotoUpload::find($upload->id));
-        $this->assertSame(1, PhotoUploadCleanupQueue::where('storage_path', $stagingPath)->count());
+        $intents = PhotoUploadCleanupQueue::where('source_session_public_id', $session->public_id)->get();
+        $this->assertCount(1, $intents);
+        $this->assertCount(1, $intents->where('storage_path', $stagingPath));
+        $this->assertTrue($intents->every(fn (PhotoUploadCleanupQueue $intent): bool => $intent->deletion_started_at === null));
         $this->assertSame('REJECTED:session_expired', trim(file_get_contents($directory.'/claim.result')));
 
         $this->cleanupDirectory($directory);
@@ -598,6 +607,7 @@ class DirectPhotoUploadOwnershipConcurrencyTest extends TestCase
     public function test_real_mysql_direct_claim_wins_before_expiry_cleanup(): void
     {
         [$session, $token, $upload] = $this->createDirectPendingUpload();
+        $stagingPath = $upload->storage_path;
 
         $directory = storage_path('framework/testing/claim-before-expiry-cleanup-'.getmypid());
         @mkdir($directory, 0775, true);
@@ -648,10 +658,13 @@ class DirectPhotoUploadOwnershipConcurrencyTest extends TestCase
         // and stages a durable intent rather than losing the object outright.
         $this->assertNull(PhotoUploadSession::find($session->id));
         $this->assertNull(PhotoUpload::find($upload->id));
-        $intents = PhotoUploadCleanupQueue::all();
-        $this->assertCount(1, $intents);
-        $this->assertTrue(PhotoUploadObjectPath::isSealed($intents->first()->storage_path));
-        $this->assertNotSame($upload->storage_path, $intents->first()->storage_path);
+        $intents = PhotoUploadCleanupQueue::where('source_session_public_id', $session->public_id)->get();
+        $this->assertCount(2, $intents);
+        $this->assertCount(1, $intents->where('storage_path', $stagingPath));
+        $sealedIntents = $intents->filter(fn (PhotoUploadCleanupQueue $intent): bool => PhotoUploadObjectPath::isSealed($intent->storage_path));
+        $this->assertCount(1, $sealedIntents);
+        $this->assertNotSame($upload->storage_path, $sealedIntents->first()->storage_path);
+        $this->assertNull($sealedIntents->first()->deletion_started_at);
 
         $this->cleanupDirectory($directory);
     }
@@ -663,9 +676,11 @@ class DirectPhotoUploadOwnershipConcurrencyTest extends TestCase
     {
         ['session' => $session, 'token' => $token] = PhotoUploadSession::issue();
         $disk = config('zb-examine.photo_upload_direct_disk', 'photo_uploads_spaces');
-        $stagingPath = PhotoUploadObjectPath::staging($session->public_id, (string) Str::ulid());
+        $photoPublicId = (string) Str::ulid();
+        $stagingPath = PhotoUploadObjectPath::staging($session->public_id, $photoPublicId);
 
         $upload = PhotoUpload::factory()->pending()->for($session)->create([
+            'public_id' => $photoPublicId,
             'storage_disk' => $disk,
             'storage_path' => $stagingPath,
         ]);

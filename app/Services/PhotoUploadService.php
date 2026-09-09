@@ -134,12 +134,19 @@ final class PhotoUploadService
         try {
             $sealer->seal($source, $candidatePath);
 
-            return DB::transaction(function () use ($sessionPublicId, $token, $photoPublicId, $candidatePath, $source): PhotoUpload {
+            return DB::transaction(function () use ($sessionPublicId, $token, $photoPublicId, $candidatePath, $source, $cleanup): PhotoUpload {
                 $session = $this->sessions->resolveLocked($sessionPublicId, $token);
                 $upload = $this->findOwned($session, $photoPublicId);
 
                 if ($upload->verified_at !== null) {
                     return $upload;
+                }
+
+                $stagingDisk = $upload->storage_disk;
+                $stagingPath = $upload->storage_path;
+
+                if (! PhotoUploadObjectPath::isDirectStorage($stagingDisk, $stagingPath) || ! PhotoUploadObjectPath::isStaging($stagingPath)) {
+                    throw new PhotoUploadInvalid('invalid_photo');
                 }
 
                 $candidate = PhotoUploadCleanupQueue::query()
@@ -151,6 +158,8 @@ final class PhotoUploadService
                 if (! $candidate || $candidate->deletion_started_at !== null) {
                     throw new PhotoUploadInvalid('photo_state_conflict');
                 }
+
+                $cleanup->stageDeletionIntent($stagingDisk, $stagingPath, $sessionPublicId);
 
                 $upload->storage_path = $candidatePath;
                 $upload->mime_type = $source->mimeType;

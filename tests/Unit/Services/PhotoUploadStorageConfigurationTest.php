@@ -9,6 +9,13 @@ use Tests\TestCase;
 
 class PhotoUploadStorageConfigurationTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['zb-examine.photo_upload_mode' => 'proxy']);
+    }
+
     public function test_proxy_defaults_preserve_the_existing_local_disk(): void
     {
         $this->assertSame('proxy', config('zb-examine.photo_upload_mode'));

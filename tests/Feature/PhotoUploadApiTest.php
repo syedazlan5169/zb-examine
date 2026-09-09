@@ -34,8 +34,23 @@ class PhotoUploadApiTest extends TestCase
     {
         parent::setUp();
 
+        config([
+            'zb-examine.photo_upload_mode' => 'proxy',
+            'zb-examine.photo_upload_direct_disk' => 'photo_uploads_spaces',
+        ]);
+
         Storage::fake('photo_uploads');
         Storage::fake('photo_uploads_spaces');
+    }
+
+    protected function tearDown(): void
+    {
+        config([
+            'zb-examine.photo_upload_mode' => 'proxy',
+            'zb-examine.photo_upload_direct_disk' => 'photo_uploads_spaces',
+        ]);
+
+        parent::tearDown();
     }
 
     // ----- allocation -----
@@ -62,6 +77,7 @@ class PhotoUploadApiTest extends TestCase
 
     public function test_storage_path_uses_only_server_generated_identifiers(): void
     {
+        config(['zb-examine.photo_upload_mode' => 'proxy']);
         [$publicId, $token] = $this->createSession();
         $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
 
@@ -358,7 +374,86 @@ class PhotoUploadApiTest extends TestCase
         $upload = PhotoUpload::where('public_id', $photoPublicId)->firstOrFail();
         $this->assertNotNull($upload->verified_at);
         $this->assertTrue(PhotoUploadObjectPath::isSealed($upload->storage_path));
-        $this->assertSame(0, PhotoUploadCleanupQueue::where('storage_disk', $upload->storage_disk)->count());
+        $this->assertSame('photo_uploads_spaces', $upload->storage_disk);
+        $this->assertFalse(PhotoUploadObjectPath::isStaging($upload->storage_path));
+
+        $stagingPath = "photo-upload-staging/{$publicId}/{$photoPublicId}.jpg";
+        $stagingIntent = PhotoUploadCleanupQueue::where('storage_disk', 'photo_uploads_spaces')
+            ->where('storage_path', $stagingPath)
+            ->firstOrFail();
+        $this->assertSame($publicId, $stagingIntent->source_session_public_id);
+        $this->assertNotNull($stagingIntent->delete_after);
+        $this->assertDatabaseMissing('photo_upload_cleanup_queue', [
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => $upload->storage_path,
+        ]);
+    }
+
+    public function test_direct_completion_stages_staging_cleanup_intent_atomically_with_the_claim(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        $this->bindFakeSpacesClient();
+
+        $response = $this->completePhoto($publicId, $token, $photoPublicId);
+
+        $response->assertOk();
+
+        $upload = PhotoUpload::where('public_id', $photoPublicId)->firstOrFail();
+        $this->assertNotNull($upload->verified_at);
+        $this->assertSame('photo_uploads_spaces', $upload->storage_disk);
+        $this->assertTrue(PhotoUploadObjectPath::isSealed($upload->storage_path));
+        $this->assertFalse(PhotoUploadObjectPath::isStaging($upload->storage_path));
+
+        $stagingPath = "photo-upload-staging/{$publicId}/{$photoPublicId}.jpg";
+        $this->assertDatabaseHas('photo_upload_cleanup_queue', [
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => $stagingPath,
+            'source_session_public_id' => $publicId,
+        ]);
+        $this->assertDatabaseMissing('photo_upload_cleanup_queue', [
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => $upload->storage_path,
+        ]);
+    }
+
+    public function test_direct_completion_rollback_removes_only_the_uncommitted_staging_intent(): void
+    {
+        config(['zb-examine.photo_upload_mode' => 'direct']);
+        [$publicId, $token] = $this->createSession();
+        $photoPublicId = $this->allocate($publicId, $token)->json('public_id');
+        $stagingPath = "photo-upload-staging/{$publicId}/{$photoPublicId}.jpg";
+        PhotoUpload::saving(function (PhotoUpload $upload) use ($photoPublicId): void {
+            if ($upload->public_id === $photoPublicId) {
+                throw new \RuntimeException('simulated mid-transaction failure');
+            }
+        });
+
+        $this->bindFakeSpacesClient();
+
+        try {
+            app(PhotoUploadService::class)->complete($publicId, $token, $photoPublicId);
+            $this->fail('Expected the direct completion claim to fail.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('simulated mid-transaction failure', $e->getMessage());
+        }
+
+        $upload = PhotoUpload::where('public_id', $photoPublicId)->firstOrFail();
+        $this->assertNull($upload->verified_at);
+        $this->assertTrue(PhotoUploadObjectPath::isStaging($upload->storage_path));
+        $this->assertDatabaseMissing('photo_upload_cleanup_queue', [
+            'storage_disk' => 'photo_uploads_spaces',
+            'storage_path' => $stagingPath,
+        ]);
+
+        $remaining = PhotoUploadCleanupQueue::query()
+            ->where('storage_disk', 'photo_uploads_spaces')
+            ->where('source_session_public_id', $publicId)
+            ->get();
+
+        $this->assertCount(1, $remaining);
+        $this->assertFalse(PhotoUploadObjectPath::isStaging($remaining->first()->storage_path));
     }
 
     public function test_direct_completion_is_idempotent_on_retry(): void
@@ -931,6 +1026,14 @@ class PhotoUploadApiTest extends TestCase
         $response = $this->postJson('/photo-upload-sessions');
 
         return [$response->json('public_id'), $response->json('token')];
+    }
+
+    private function useDirectPhotoUploadMode(): void
+    {
+        config([
+            'zb-examine.photo_upload_mode' => 'direct',
+            'zb-examine.photo_upload_direct_disk' => 'photo_uploads_spaces',
+        ]);
     }
 
     private function allocate(string $publicId, string $token)
