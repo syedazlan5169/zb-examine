@@ -384,6 +384,15 @@ DELETE /photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}          
 
 Test coverage: `tests/Feature/PhotoUploadSessionApiTest.php` and `tests/Feature/PhotoUploadApiTest.php` (both `DatabaseMigrations`, `Storage::fake('photo_uploads')`) cover session issuance/authentication/anti-enumeration, allocation and the 10-photo cap, upload/complete verification (including a genuinely corrupt-content JPEG rejected and cleaned up), idempotent duplicate completion, cross-session isolation, finalized/expired rejection on every mutating endpoint, row-before-object removal ordering, storage-delete-failure resilience, safe resume output, and a regression assertion that no `Examination`/`ExaminationPhoto` row is created by this phase.
 
+### Photo preview lifecycle
+
+- While the page remains open, newly selected/taken photos display a local preview generated from the optimized browser Blob.
+- Photo upload state is recoverable after refresh through the photo-upload session.
+- Preview thumbnails are **not** recoverable after a page refresh or locale change because Blob URLs are browser-memory-only and are intentionally not persisted.
+- Step 3B.3 does not store image Blobs/File objects in sessionStorage, localStorage, or IndexedDB.
+- After refresh, verified photo cards may therefore be restored without thumbnails.
+- Restoring private previews after reload is deferred to a later integration/storage-retrieval step using authorized private image access (e.g. signed/private URLs), rather than persisting evidence image data in browser storage.
+
 ## Next Development Stage
 
 The examination domain, its core submission pathway, and the guest-facing non-photo submission form are implemented and tested. Next work should build on top of the existing form.

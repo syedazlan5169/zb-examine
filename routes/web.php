@@ -9,6 +9,11 @@ Route::get('/', [ExaminationController::class, 'create'])->name('examinations.cr
 Route::post('/examinations', [ExaminationController::class, 'store'])->name('examinations.store');
 Route::get('/examinations/success', [ExaminationController::class, 'success'])->name('examinations.success');
 
+if (app()->environment(['local', 'testing'])) {
+    Route::view('/dev/photo-upload-workbench', 'dev.photo-upload-workbench')
+        ->name('dev.photo-upload-workbench');
+}
+
 // Standard `web` group (CSRF included, unchanged) \u2014 bearer-token session auth
 // and CSRF are separate, complementary protections (see docs/DECISIONS.md).
 Route::post('/photo-upload-sessions', [PhotoUploadSessionController::class, 'store'])
