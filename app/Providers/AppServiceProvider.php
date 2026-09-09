@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\ExaminationPhoto;
+use App\Policies\ExaminationPhotoPolicy;
 use App\Services\AwsSpacesObjectClient;
 use App\Services\AwsSpacesPutPresigner;
 use App\Services\DirectPhotoUploadAuthorizer;
@@ -10,6 +12,10 @@ use App\Services\PhotoUploadTransport;
 use App\Services\SpacesObjectClient;
 use App\Services\SpacesPhotoUploadAuthorizer;
 use App\Services\SpacesPutPresigner;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -30,6 +36,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(ExaminationPhoto::class, ExaminationPhotoPolicy::class);
+
+        RateLimiter::for('login', function (Request $request): Limit {
+            $email = strtolower(trim((string) $request->input('email', '')));
+
+            return Limit::perMinute(5)->by($email.'|'.$request->ip());
+        });
+
         $presignTtl = (int) config('zb-examine.photo_upload_presign_ttl_seconds', 300);
         $settleSeconds = (int) config('zb-examine.photo_cleanup_settle_seconds', 3600);
 

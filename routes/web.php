@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ExaminationController;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\PhotoUploadSessionController;
@@ -8,6 +9,16 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [ExaminationController::class, 'create'])->name('examinations.create');
 Route::post('/examinations', [ExaminationController::class, 'store'])->name('examinations.store');
 Route::get('/examinations/success', [ExaminationController::class, 'success'])->name('examinations.success');
+
+Route::get('/login', [AuthController::class, 'create'])
+    ->middleware('guest')
+    ->name('login');
+Route::post('/login', [AuthController::class, 'store'])
+    ->middleware(['guest', 'throttle:login'])
+    ->name('auth.login.store');
+Route::post('/logout', [AuthController::class, 'destroy'])
+    ->middleware('auth')
+    ->name('auth.logout');
 
 if (app()->environment(['local', 'testing'])) {
     Route::view('/dev/photo-upload-workbench', 'dev.photo-upload-workbench')

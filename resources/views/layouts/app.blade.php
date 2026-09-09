@@ -18,7 +18,20 @@
                 {{ __('app.name') }}
             </a>
 
-            <nav aria-label="{{ __('app.current_language') }}" class="flex gap-2 text-sm font-medium">
+            <nav aria-label="{{ __('app.current_language') }}" class="flex items-center gap-2 text-sm font-medium">
+                @auth
+                    <form method="POST" action="{{ route('auth.logout') }}">
+                        @csrf
+                        <button type="submit" class="rounded-md px-3 py-2 text-gray-600 hover:bg-gray-100">
+                            {{ __('auth.logout') }}
+                        </button>
+                    </form>
+                @else
+                    <a href="{{ route('login') }}" class="rounded-md px-3 py-2 text-gray-600 hover:bg-gray-100">
+                        {{ __('auth.login') }}
+                    </a>
+                @endauth
+
                 <a
                     href="{{ route('language.switch', 'ms') }}"
                     class="rounded-md px-3 py-2 {{ app()->getLocale() === 'ms' ? 'bg-gray-900 text-white' : 'text-gray-600' }}"
