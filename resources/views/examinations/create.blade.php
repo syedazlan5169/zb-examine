@@ -33,11 +33,11 @@
             </h2>
 
             <div class="space-y-5">
-                <x-text-input name="agent_name" :label="__('examination.fields.agent_name')" autocomplete="name" />
-                <x-text-input name="agent_phone" :label="__('examination.fields.agent_phone')" type="tel" autocomplete="tel" inputmode="tel" />
-                <x-text-input name="agent_code" :label="__('examination.fields.agent_code')" autocomplete="off" />
-                <x-text-input name="agent_company_name" :label="__('examination.fields.agent_company_name')" autocomplete="organization" />
-                <x-text-input name="agent_station_code" :label="__('examination.fields.agent_station_code')" autocomplete="off" />
+                <x-text-input name="agent_name" :label="__('examination.fields.agent_name')" :value="$agentDefaults['agent_name'] ?? ''" autocomplete="name" />
+                <x-text-input name="agent_phone" :label="__('examination.fields.agent_phone')" type="tel" :value="$agentDefaults['agent_phone'] ?? ''" autocomplete="tel" inputmode="tel" />
+                <x-text-input name="agent_code" :label="__('examination.fields.agent_code')" :value="$agentDefaults['agent_code'] ?? ''" autocomplete="off" />
+                <x-text-input name="agent_company_name" :label="__('examination.fields.agent_company_name')" :value="$agentDefaults['agent_company_name'] ?? ''" autocomplete="organization" />
+                <x-text-input name="agent_station_code" :label="__('examination.fields.agent_station_code')" :value="$agentDefaults['agent_station_code'] ?? ''" autocomplete="off" />
             </div>
         </section>
 

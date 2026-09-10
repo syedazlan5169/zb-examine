@@ -5,12 +5,17 @@ use App\Http\Controllers\ExaminationController;
 use App\Http\Controllers\ExaminationPhotoPreviewController;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\PhotoUploadSessionController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StaffExaminationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [ExaminationController::class, 'create'])->name('examinations.create');
 Route::post('/examinations', [ExaminationController::class, 'store'])->name('examinations.store');
 Route::get('/examinations/success', [ExaminationController::class, 'success'])->name('examinations.success');
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+});
 Route::get('/examinations', [StaffExaminationController::class, 'index'])
     ->middleware('auth')
     ->name('examinations.index');

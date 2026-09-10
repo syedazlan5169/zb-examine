@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Data\ExaminationSubmissionData;
 use App\Data\PhotoUploadSessionCredentials;
+use App\Enums\UserRole;
 use App\Exceptions\InvalidCustomsFormNumberInput;
 use App\Exceptions\PhotoUploadInvalid;
 use App\Exceptions\PhotoUploadSessionInvalid;
@@ -40,7 +41,19 @@ class ExaminationController extends Controller
         // Starting a fresh submission ends the previous temporary success state.
         session()->forget('examination_success');
 
-        return view('examinations.create');
+        $agentDefaults = [];
+
+        if (auth()->check() && auth()->user()->role === UserRole::Agent) {
+            $agentDefaults = [
+                'agent_name' => auth()->user()->name,
+                'agent_phone' => auth()->user()->phone,
+                'agent_code' => auth()->user()->agent_code,
+                'agent_company_name' => auth()->user()->company_name,
+                'agent_station_code' => auth()->user()->station_code,
+            ];
+        }
+
+        return view('examinations.create', ['agentDefaults' => $agentDefaults]);
     }
 
     public function store(ExaminationSubmissionRequest $request, ExaminationSubmissionService $service): RedirectResponse

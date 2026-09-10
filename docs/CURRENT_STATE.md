@@ -12,7 +12,7 @@ The submission-number generator is implemented: `App\Services\SubmissionNumberGe
 
 The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete submission by composing the customs-form-number normalizer, the number generator, and photo finalization. See D019/D022/D023 in docs/DECISIONS.md.
 
-The real Examination form, photo integration, customs-form-number UI, expired-session/orphan-object cleanup, and simple staff authentication are implemented (Steps 3B.4 and 3B.5). Authentication uses username/password; profile auto-fill has not been implemented.
+The real Examination form, photo integration, customs-form-number UI, expired-session/orphan-object cleanup, simple staff authentication, staff retrieval workspace, authenticated private evidence preview, and Registered Agent Profile + Examination Form Auto-Fill are implemented. Authentication uses username/password; Agent Submission History remains unimplemented.
 
 Step 3B.6A adds the private `photo_uploads_spaces` filesystem disk and isolated
 DigitalOcean Spaces primitives. The existing local `photo_uploads` disk remains
@@ -370,6 +370,151 @@ not performed and is not represented as passed here. This staff UI checkpoint is
 separate from the direct-upload checkpoint above, which remains exactly:
 
 **Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
+
+## Registered Agent Profile + Examination Form Auto-Fill
+
+Authenticated Agent users can manage their own profile through:
+
+```text
+GET   /profile  profile.edit
+PATCH /profile  profile.update
+```
+
+The profile manages only these existing `users` columns:
+
+```text
+name
+phone
+agent_code
+company_name
+station_code
+```
+
+No database migration was required. The existing `users` table already provides
+all five columns. There is no arbitrary user-id profile route; profile identity
+is resolved only from the authenticated session.
+
+Profile access is role-scoped: guests redirect to login, Agents are allowed,
+and officers/admins receive `403`. The profile endpoint cannot change
+`username`, `email`, `password`, `role`, `preferred_locale`,
+`email_verified_at`, `remember_token`, or another user. Existing Laravel session
+auth, CSRF, and password behavior remain unchanged.
+
+Optional profile fields support incomplete records and may be cleared:
+
+```text
+phone
+agent_code
+company_name
+station_code
+```
+
+There is no profile-completeness middleware, no complete-profile-before-
+submission requirement, and no blocking redirect. The existing examination
+submission validation remains authoritative.
+
+### Profile defaults and submission snapshots
+
+Registered Agent profile data is current convenience/default data only.
+Persisted Examination agent fields remain immutable submission-time snapshots.
+
+Profile values map to the public form as:
+
+```text
+User.name         -> agent_name
+User.phone        -> agent_phone
+User.agent_code   -> agent_code
+User.company_name -> agent_company_name
+User.station_code -> agent_station_code
+```
+
+When an authenticated Agent opens `GET /`, those values are applied as defaults
+for the five Agent fields. Guests keep blank/manual fields, and officer/admin
+users do not receive Agent profile autofill. The prefilled fields remain
+editable, so an Agent may override a profile default for one submission without
+changing their profile.
+
+Old input takes precedence over profile defaults:
+
+```text
+old(field, profile-default)
+```
+
+Validation round-trips preserve the value the user typed; profile defaults must
+not overwrite submitted input after validation failure. The shared text-input
+component provides this behavior and was audited as safe for the current inputs.
+
+`ExaminationSubmissionService` remains profile-agnostic.
+`ExaminationSubmissionData` remains the canonical validated submission boundary.
+The service continues persisting exactly what was submitted, and changing a User
+profile later does not rewrite historical examinations.
+
+### Navigation and localization
+
+Header behavior is currently:
+
+```text
+Guest:
+  login
+  public form remains accessible
+
+Agent:
+  Profile
+  Logout
+
+Officer/Admin:
+  staff examination workspace
+  Logout
+```
+
+Officer/Admin users do not receive Agent Profile navigation, and Agents remain
+denied from staff examination retrieval.
+
+Profile UI is bilingual with Malay as the default and English optional.
+Profile-specific strings live in `lang/ms/profile.php` and `lang/en/profile.php`;
+existing examination field labels are reused where appropriate.
+
+### Manual QA checkpoint
+
+Manual browser QA **PASSED** for the Registered Agent Profile + Examination Form
+Auto-Fill slice. Confirmed manually:
+
+```text
+Agent can open own Profile page                                      PASS
+all five saved profile values render correctly                       PASS
+profile update succeeds                                              PASS
+localized success message appears                                    PASS
+saved values remain after redirect/reload                            PASS
+authenticated Agent public form auto-fills all five Agent fields     PASS
+prefilled fields remain editable                                     PASS
+Agent changed one prefilled Company value before submission          PASS
+submission succeeded as ZB-260910-0004                               PASS
+staff workspace showed the edited submitted Company value            PASS
+Agent changed the saved profile Company value afterward              PASS
+historical submission ZB-260910-0004 remained unchanged              PASS
+guest public form remains blank/manual with no profile leakage       PASS
+officer/admin public form does not receive Agent profile autofill    PASS
+Malay profile UI works                                               PASS
+English profile UI works                                             PASS
+translated field labels/buttons/success message work                 PASS
+no raw translation keys observed                                     PASS
+```
+
+The `ZB-260910-0004` check proves persistence uses submitted form data rather
+than silently re-reading the User profile, and that the Examination snapshot is
+independent of later profile changes.
+
+Automated validation for this slice:
+
+```text
+Focused AgentProfileTest:              16 tests, 68 assertions, 0 failures
+Relevant regression set:              110 tests, 469 assertions, 0 failures
+Full suite before final formatting:   335 tests, 1,112 assertions, 0 failures
+vendor/bin/pint --test:               PASS on all 5 touched PHP files
+AgentProfileTest after Pint:           16 tests, 68 assertions, 0 failures
+git diff --check:                     PASS
+Composer validation:                  PASS
+```
 
 ## Staff Authentication and Session Lifetime
 
@@ -738,7 +883,7 @@ POST /examinations        examinations.store
 GET  /examinations/success examinations.success
 ```
 
-The create/store routes are guest-accessible; no authentication is required to submit. If a user happens to be authenticated, `auth()->user()` is passed to `ExaminationSubmissionService::submit()`, but profile auto-fill is not implemented.
+The create/store routes are guest-accessible; no authentication is required to submit. If a user happens to be authenticated, `auth()->user()` is passed to `ExaminationSubmissionService::submit()`. Authenticated Agents receive editable profile defaults for the five Agent fields; guests and officer/admin users do not receive Agent profile autofill.
 
 `ExaminationSubmissionRequest::prepareForValidation()` converts an empty-string `reason` (as posted by a `<select>` placeholder) to `null` before validation, nulls `form_type_other`/`reason_other` whenever their controlling field isn't `other`, and trims each `customs_form_numbers.*` array value (without deleting empty/duplicate entries, which must still fail validation) ahead of the DTO's own canonicalization. `customs_form_numbers` is validated as `required|array|min:1|max:255` with each `customs_form_numbers.*` as `required|string|max:100|distinct:ignore_case` (D023) — no DB `exists:` rule for the photo-session fields, which use the same basic-shape-only approach. Enum fields are validated with `Illuminate\Validation\Rule::enum(...)`; string length limits mirror the actual `examinations`/`examination_customs_form_numbers` table columns.
 
@@ -859,12 +1004,11 @@ concurrent submissions of the same photo session.
 
 ## Next Development Stage
 
-The examination domain, its core submission pathway, and the full guest-facing photo-integrated submission form are implemented and tested. Next work should build on top of the existing form.
+The examination domain, its core submission pathway, the full guest-facing photo-integrated submission form, staff retrieval workspace, and Registered Agent Profile + Examination Form Auto-Fill are implemented and tested. Next work should build on top of the existing authenticated Agent surface.
 
-Important upcoming areas include:
+Recommended next product milestone:
 
 ```text
-Authentication and registered-agent profile auto-fill
 Agent submission history
 ```
 

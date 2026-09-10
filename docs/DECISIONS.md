@@ -980,3 +980,24 @@ The sidebar does not count or eager-load photos. The index does not eager-load
 photo or customs-form collections. The show state loads only the selected
 examination's ordered customs form numbers and photos. Below Tailwind `lg`, the
 panels stack naturally; no separate mobile application/layout was introduced.
+
+## D030 - Registered Agent Profile Defaults and Examination Snapshots
+
+Registered Agent profile data is a form-default convenience layer only.
+Persisted Examination agent fields remain immutable submission-time snapshots.
+Profile values may prefill `agent_name`, `agent_phone`, `agent_code`,
+`agent_company_name`, and `agent_station_code` on the public Examination form,
+but the fields remain editable for each submission.
+
+Old input takes precedence over profile defaults after validation failure, so a
+round-trip never replaces the user's submitted value with a saved profile value.
+`ExaminationSubmissionService` remains profile-agnostic and persists exactly the
+validated `ExaminationSubmissionData` it receives; later User profile changes do
+not rewrite historical Examination rows.
+
+The profile is Agent-only self-service resolved from the authenticated session.
+Officer/Admin users are not treated as Agents for autofill or profile navigation,
+and there is no arbitrary user-id profile route. There is no profile-completeness
+gate before submission. No migration was required because the existing `users`
+schema already has `name`, `phone`, `agent_code`, `company_name`, and
+`station_code`.

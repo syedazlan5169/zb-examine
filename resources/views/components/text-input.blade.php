@@ -5,6 +5,7 @@
     'autocomplete' => null,
     'inputmode' => null,
     'required' => true,
+    'value' => null,
 ])
 
 <div>
@@ -19,7 +20,7 @@
         type="{{ $type }}"
         name="{{ $name }}"
         id="{{ $name }}"
-        value="{{ old($name) }}"
+        value="{{ old($name, $value ?? '') }}"
         @if ($required) required @endif
         @if ($autocomplete) autocomplete="{{ $autocomplete }}" @endif
         @if ($inputmode) inputmode="{{ $inputmode }}" @endif

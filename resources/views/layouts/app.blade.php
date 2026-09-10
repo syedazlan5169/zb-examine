@@ -20,6 +20,12 @@
 
             <nav aria-label="{{ __('app.current_language') }}" class="flex items-center gap-2 text-sm font-medium">
                 @auth
+                    @if (auth()->user()->role === \App\Enums\UserRole::Agent)
+                        <a href="{{ route('profile.edit') }}" class="rounded-md px-3 py-2 text-gray-600 hover:bg-gray-100">
+                            {{ __('profile.title') }}
+                        </a>
+                    @endif
+
                     @can('viewAny', \App\Models\Examination::class)
                         <a href="{{ route('examinations.index') }}" class="rounded-md px-3 py-2 text-gray-600 hover:bg-gray-100">
                             {{ __('examination.navigation') }}
