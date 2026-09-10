@@ -3,13 +3,42 @@
 return [
 
     'title' => 'Pendaftaran Pemeriksaan',
+    'navigation' => 'Pemeriksaan',
+
+    'staff' => [
+        'list_title' => 'Senarai Pemeriksaan',
+        'detail_title' => 'Butiran Pemeriksaan',
+        'select_examination' => 'Pilih pemeriksaan untuk melihat butiran.',
+        'search' => 'Cari pemeriksaan',
+        'search_placeholder' => 'Nombor penyerahan, borang kastam, ejen atau syarikat',
+        'submitted_at' => 'Tarikh dan masa penyerahan',
+        'agent' => 'Ejen',
+        'company' => 'Syarikat',
+        'agent_code' => 'Kod ejen',
+        'station_code' => 'Kod stesen',
+        'photos' => 'Foto',
+        'photo_count' => '{1} :count foto|[2,*] :count foto',
+        'view' => 'Lihat',
+        'customs_forms' => 'Nombor Borang Kastam',
+        'evidence' => 'Bukti Foto',
+        'no_examinations' => 'Tiada pemeriksaan direkodkan.',
+        'no_search_results' => 'Tiada pemeriksaan sepadan dengan carian anda.',
+        'no_photos' => 'Tiada foto bukti.',
+        'no_customs_forms' => 'Tiada nombor borang kastam.',
+        'back_to_list' => 'Kembali ke senarai',
+        'previous' => 'Sebelumnya',
+        'next' => 'Seterusnya',
+        'page' => 'Halaman :current daripada :last',
+    ],
 
     'sections' => [
+        'submission' => 'Penyerahan',
         'agent_information' => 'Maklumat Ejen',
         'examination_information' => 'Maklumat Pemeriksaan',
     ],
 
     'fields' => [
+        'submission_number' => 'Nombor Penyerahan',
         'agent_name' => 'Nama Ejen',
         'agent_phone' => 'Nombor Telefon Ejen',
         'agent_code' => 'Kod Ejen',

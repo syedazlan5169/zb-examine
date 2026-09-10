@@ -5,11 +5,18 @@ use App\Http\Controllers\ExaminationController;
 use App\Http\Controllers\ExaminationPhotoPreviewController;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\PhotoUploadSessionController;
+use App\Http\Controllers\StaffExaminationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [ExaminationController::class, 'create'])->name('examinations.create');
 Route::post('/examinations', [ExaminationController::class, 'store'])->name('examinations.store');
 Route::get('/examinations/success', [ExaminationController::class, 'success'])->name('examinations.success');
+Route::get('/examinations', [StaffExaminationController::class, 'index'])
+    ->middleware('auth')
+    ->name('examinations.index');
+Route::get('/examinations/{examination}', [StaffExaminationController::class, 'show'])
+    ->middleware('auth')
+    ->name('examinations.show');
 Route::get('/examinations/{examination}/photos/{photo}/preview', [ExaminationPhotoPreviewController::class, 'show'])
     ->middleware('auth')
     ->scopeBindings()

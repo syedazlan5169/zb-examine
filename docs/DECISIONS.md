@@ -935,3 +935,48 @@ authentication tests with 85 assertions and 305 tests with 956 assertions in the
 full regular suite. Existing local/Spaces preview regression coverage remained
 green. This decision does not change the earlier direct-upload status:
 **Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
+
+## D029 - Staff Examination Retrieval and Split Review Workspace
+
+Internal examination retrieval is available only to authenticated `officer` and
+`admin` users. `GET /examinations` is the paginated staff workspace index and
+`GET /examinations/{examination}` is the selected-examination workspace state.
+Guests are redirected to login and agents receive `403`. The show action
+explicitly authorizes both collection access (`viewAny`) and access to the
+selected examination (`view`); this remains a server-side boundary and is not
+replaced by navigation visibility.
+
+The staff search is one server-side query-string field covering only
+`submission_no`, `agent_code`, `agent_station_code`, `agent_name`,
+`agent_company_name`, and related customs form numbers. Raw input is validated
+before trimming; malformed array input is rejected and whitespace-only input is
+treated as no filter. Search results use grouped Eloquent conditions, deterministic
+`submitted_at DESC, id DESC` ordering, and database pagination of 25 rows.
+Searching always submits to `/examinations` and resets the selected detail. A
+sidebar selection preserves only the current `search` and `page` context.
+
+The split workspace was selected over the initially implemented standalone
+list-to-detail presentation because it better supports repeated staff review.
+The sidebar intentionally shows only submitted date/time and `submission_no`; the
+entire row is clickable and uses semantic selected-row markers. The right pane
+contains the complete read-only examination summary and ordered evidence.
+
+At desktop widths, the detail summary is compact and capped at approximately 42%
+of the right pane, with its own overflow, so the evidence region retains a
+meaningful viewport. The evidence scroll viewport is deliberately separate from
+the content-sized photo grid: the outer element owns `min-h-0`, `flex-1`, and
+`overflow-y-auto`, while the inner element owns the grid and its natural rows.
+This prevents multiple photo rows from being compressed into the available
+viewport height.
+
+Evidence thumbnails use a clickable 4:3 container with a neutral light background
+and `object-contain` rather than `object-cover`. Evidence completeness takes
+priority over crop-fill aesthetics, especially for portrait photographs. Both
+thumbnail `src` and clickable `href` use only the existing protected Laravel
+preview route; Blade never emits a Spaces URL, presigned URL, storage path, or
+storage metadata.
+
+The sidebar does not count or eager-load photos. The index does not eager-load
+photo or customs-form collections. The show state loads only the selected
+examination's ordered customs form numbers and photos. Below Tailwind `lg`, the
+panels stack naturally; no separate mobile application/layout was introduced.

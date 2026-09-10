@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\Examination;
 use App\Models\ExaminationPhoto;
 use App\Policies\ExaminationPhotoPolicy;
+use App\Policies\ExaminationPolicy;
 use App\Services\AwsSpacesGetPresigner;
 use App\Services\AwsSpacesObjectClient;
 use App\Services\AwsSpacesPutPresigner;
@@ -39,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(Examination::class, ExaminationPolicy::class);
         Gate::policy(ExaminationPhoto::class, ExaminationPhotoPolicy::class);
 
         RateLimiter::for('login', function (Request $request): Limit {

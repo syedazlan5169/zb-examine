@@ -3,13 +3,42 @@
 return [
 
     'title' => 'Examination Submission',
+    'navigation' => 'Submissions',
+
+    'staff' => [
+        'list_title' => 'Examinations',
+        'detail_title' => 'Examination Details',
+        'select_examination' => 'Select an examination to view details.',
+        'search' => 'Search examinations',
+        'search_placeholder' => 'Submission number, customs form, agent or company',
+        'submitted_at' => 'Submitted at',
+        'agent' => 'Agent',
+        'company' => 'Company',
+        'agent_code' => 'Agent code',
+        'station_code' => 'Station code',
+        'photos' => 'Photos',
+        'photo_count' => '{1} :count photo|[2,*] :count photos',
+        'view' => 'View',
+        'customs_forms' => 'Customs Form Numbers',
+        'evidence' => 'Evidence Photos',
+        'no_examinations' => 'No examinations have been recorded.',
+        'no_search_results' => 'No examinations match your search.',
+        'no_photos' => 'No evidence photos.',
+        'no_customs_forms' => 'No customs form numbers.',
+        'back_to_list' => 'Back to list',
+        'previous' => 'Previous',
+        'next' => 'Next',
+        'page' => 'Page :current of :last',
+    ],
 
     'sections' => [
+        'submission' => 'Submission',
         'agent_information' => 'Agent Information',
         'examination_information' => 'Examination Information',
     ],
 
     'fields' => [
+        'submission_number' => 'Submission Number',
         'agent_name' => 'Agent Name',
         'agent_phone' => 'Agent Phone Number',
         'agent_code' => 'Agent Code',

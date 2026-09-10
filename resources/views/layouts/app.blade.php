@@ -20,6 +20,12 @@
 
             <nav aria-label="{{ __('app.current_language') }}" class="flex items-center gap-2 text-sm font-medium">
                 @auth
+                    @can('viewAny', \App\Models\Examination::class)
+                        <a href="{{ route('examinations.index') }}" class="rounded-md px-3 py-2 text-gray-600 hover:bg-gray-100">
+                            {{ __('examination.navigation') }}
+                        </a>
+                    @endcan
+
                     <form method="POST" action="{{ route('auth.logout') }}">
                         @csrf
                         <button type="submit" class="rounded-md px-3 py-2 text-gray-600 hover:bg-gray-100">
@@ -49,7 +55,7 @@
         </div>
     </header>
 
-    <main class="mx-auto max-w-xl px-4 py-6 sm:px-6">
+    <main class="mx-auto @yield('content_width', 'max-w-xl') px-4 py-6 sm:px-6">
         @yield('content')
     </main>
 </body>

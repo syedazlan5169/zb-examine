@@ -247,6 +247,130 @@ Storage-log inspection found no `X-Amz-Signature` or `X-Amz-Credential`
 presigned URLs. No actual URL, access-key identifier, signature, secret, or
 temporary QA password is documented here.
 
+## Staff Examination Retrieval and Split Review Workspace
+
+Staff examination retrieval is implemented for `officer` and `admin` users only.
+The official routes are:
+
+```text
+GET /examinations
+  examinations.index
+
+GET /examinations/{examination}
+  examinations.show
+```
+
+Guests are redirected to login, agents receive `403`, and officers/admins are
+allowed. The index authorizes `viewAny`; the show action explicitly authorizes
+both `viewAny` for the examination collection and `view` for the selected
+examination. The existing protected evidence preview route remains unchanged.
+
+The sidebar search is server-side and supports:
+
+```text
+submission_no
+agent_code
+agent_station_code
+agent_name
+agent_company_name
+customs form number
+```
+
+Raw search input is validated before trimming. Malformed array input is rejected,
+whitespace-only input behaves as no filter, and grouped Eloquent conditions keep
+the search bounded to those dimensions. Results are ordered by
+`submitted_at DESC, id DESC` and paginated at 25 examinations per page. Search
+submits to `/examinations` and resets the selected detail; selecting a sidebar
+row preserves the current `search` and `page` context.
+
+The accepted UI is a split review workspace. On desktop, the left sidebar
+contains search, pagination, and clickable examination rows showing only the
+business-timezone submitted date/time and `submission_no`. Agent/company fields,
+agent/station identifiers, photo count, and a separate View button are not shown
+in the sidebar. The selected row uses semantic markers including
+`aria-current="page"` and `data-selected="true"` when it is present on the
+current page.
+
+`GET /examinations` renders the populated sidebar with no selected examination
+and a localized right-pane prompt:
+
+```text
+Malay:   Pilih pemeriksaan untuk melihat butiran.
+English: Select an examination to view details.
+```
+
+The right pane preserves the read-only submission, agent, examination, and
+ordered customs-form information. Enum values remain localized, `form_type_other`
+and `reason_other` are shown only for the corresponding `Other` values, and
+`submitted_at` is displayed in `Asia/Kuala_Lumpur` while stored timestamps remain
+UTC.
+
+At desktop widths the detail summary is compact and capped at approximately 42%
+of the right pane, with its own overflow. The evidence section owns the remaining
+space. Its outer scroll viewport is separate from the inner content-sized grid:
+
+```text
+evidence flex container
+  -> outer min-h-0 flex-1 overflow-y-auto viewport
+  -> inner grid grid-cols-1 sm:grid-cols-2 content
+```
+
+This preserves natural photo-row sizing while allowing multiple rows to scroll
+inside the evidence area. Evidence thumbnails use a clickable 4:3 container with
+a neutral `bg-gray-50` background. Images use `h-full w-full object-contain` so
+complete portrait evidence is visible rather than cropped. Both image `src` and
+clickable `href` use only the protected application preview route:
+
+```text
+route('examinations.photos.preview', [$examination, $photo])
+```
+
+No Spaces URL, presigned URL, storage path, or storage metadata is emitted by the
+staff Blade UI. Below `lg`, the panels stack naturally; extensive mobile
+refinement is not part of this slice.
+
+### Staff Retrieval QA Checkpoint
+
+Manual browser QA **PASSED** for the staff retrieval feature. Confirmed manually:
+
+```text
+officer examination list loads                         PASS
+partial submission number search                       PASS
+selected examination details are correct               PASS
+evidence thumbnails render                             PASS
+protected thumbnail -> full Spaces evidence flow      PASS
+English translation                                      PASS
+Malay UI                                               PASS
+admin behavior matches officer                         PASS
+agent receives 403                                     PASS
+guest redirects to login                               PASS
+customs form search                                    PASS
+no-results state                                       PASS
+desktop split workspace                                PASS
+sidebar selection populates right detail pane          PASS
+two-column evidence gallery                            PASS
+evidence area scrolls independently                    PASS
+multiple photo rows retain thumbnail sizing            PASS
+clicking thumbnails opens full evidence                PASS
+object-contain thumbnails show complete portraits     PASS
+light empty space around portrait images acceptable    PASS
+split workspace preferred over standalone list/detail  PASS
+```
+
+Automated validation for the final staff slice:
+
+```text
+StaffExaminationRetrievalTest: 14 tests, 88 assertions, 0 failures
+Relevant regressions:          80 tests, 313 assertions, 0 failures
+Full regular suite:             319 tests, 1,044 assertions, 0 failures
+```
+
+Pint, Composer validation, and `git diff --check` passed. Extensive mobile QA was
+not performed and is not represented as passed here. This staff UI checkpoint is
+separate from the direct-upload checkpoint above, which remains exactly:
+
+**Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
+
 ## Staff Authentication and Session Lifetime
 
 Staff authentication is intentionally simple and uses Laravel session
@@ -740,14 +864,11 @@ The examination domain, its core submission pathway, and the full guest-facing p
 Important upcoming areas include:
 
 ```text
-DigitalOcean Spaces integration
-Authenticated private photo preview retrieval (signed/private URLs)
 Authentication and registered-agent profile auto-fill
 Agent submission history
-Officer search/detail interface
 ```
 
-The overall photo-upload architecture is approved and integrated end-to-end (see D020/D021/D022/D024/D025/D026 in docs/DECISIONS.md). Photo capture, proxy/direct upload, atomic Examination finalization, and durable cleanup all exist and are tested. Remaining photo-adjacent work includes authorized private preview retrieval, the separate future policy for pruning finalized upload metadata, and the deferred manual/mobile QA listed in the Step 3B.6C checkpoint.
+The overall photo-upload architecture is approved and integrated end-to-end (see D020/D021/D022/D024/D025/D026 in docs/DECISIONS.md). Photo capture, proxy/direct upload, atomic Examination finalization, durable cleanup, and authorized private preview retrieval all exist and are tested. Remaining photo-adjacent work includes the separate future policy for pruning finalized upload metadata and the deferred manual/mobile QA listed in the Step 3B.6C checkpoint.
 
 Do not start implementing these blindly from assumptions.
 
