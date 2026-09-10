@@ -12,7 +12,7 @@ The submission-number generator is implemented: `App\Services\SubmissionNumberGe
 
 The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete submission by composing the customs-form-number normalizer, the number generator, and photo finalization. See D019/D022/D023 in docs/DECISIONS.md.
 
-The real Examination form, photo integration, customs-form-number UI, and expired-session/orphan-object cleanup are implemented (Steps 3B.4 and 3B.5). Authentication/profile auto-fill has not yet been implemented.
+The real Examination form, photo integration, customs-form-number UI, expired-session/orphan-object cleanup, and simple staff authentication are implemented (Steps 3B.4 and 3B.5). Authentication uses username/password; profile auto-fill has not been implemented.
 
 Step 3B.6A adds the private `photo_uploads_spaces` filesystem disk and isolated
 DigitalOcean Spaces primitives. The existing local `photo_uploads` disk remains
@@ -160,6 +160,130 @@ Laravel config cache was cleared. Runtime values are `photo_upload_mode=proxy`,
 `photo_upload_direct_disk=photo_uploads_spaces`. `.env` remains local and
 untracked; direct Spaces credentials/config remain available locally but are not
 documented here.
+
+## Authenticated Private Spaces Evidence Preview
+
+Status: **Authenticated private Spaces evidence preview — PROVIDER QA PASSED.**
+
+Finalized private evidence retrieval now supports both storage modes through the
+protected application route:
+
+```text
+photo_uploads
+  -> Laravel private streaming
+
+photo_uploads_spaces
+  -> authenticated application route
+  -> scoped nested binding and ExaminationPhotoPolicy authorization
+  -> short-lived presigned GET
+  -> HTTP 302 redirect to the private DigitalOcean Spaces object
+```
+
+The route is:
+
+```text
+GET /examinations/{examination}/photos/{photo}/preview
+```
+
+Guest requests redirect to login, agents receive `403`, and officers/admins are
+allowed. Scoped nested binding prevents cross-examination photo substitution;
+the wrong examination/photo pair returns `404`.
+
+Only this canonical finalized direct-upload path can be signed for retrieval:
+
+```text
+photo-uploads/{session ULID}/{photo ULID}/{48-lowercase-hex}.jpg
+```
+
+Staging and malformed paths are not retrievable. The preview TTL is configured by
+`PHOTO_PREVIEW_PRESIGN_TTL`, defaults to `120` seconds, and is bounded at runtime
+to a minimum of `60` and maximum of `300` seconds. Malformed configuration falls
+back to `120`. This retrieval TTL is separate from
+`PHOTO_UPLOAD_PRESIGN_TTL`, which authorizes direct-upload PUT requests.
+
+Laravel does not perform a provider HEAD or proxy/download Spaces evidence. It
+creates the signed request and the browser performs the final provider GET. The
+signed GET requests `image/jpeg`, an inline server-generated filename of
+`evidence-{photo-id}.jpg`, and `private, no-store, max-age=0` response cache
+control. The application returns HTTP `302` with `Cache-Control:
+private, no-store, max-age=0`, `Referrer-Policy: no-referrer`, and
+`X-Content-Type-Options: nosniff`; the redirect body is empty.
+
+Expected AWS/configuration/signing failures are translated through the dedicated
+`SpacesGetPresigningException` into `FinalizedEvidenceDeliveryUnavailable` and
+an opaque HTTP `503`. Unexpected programming errors are not swallowed as `503`
+and may surface normally as `500`. Presigned URLs are temporary bearer access:
+`X-Amz-Credential`, `X-Amz-Signature`, and `X-Amz-Expires` may normally appear,
+but the secret access key is never placed in the URL. Full signed URLs are never
+logged or persisted.
+
+### Provider QA checkpoint
+
+Manual testing used a real finalized private Spaces-backed `ExaminationPhoto`:
+
+```text
+officer login + preview                              PASS
+admin login + preview                                PASS
+authenticated agent preview -> 403                   PASS
+guest preview -> login redirect                       PASS
+cross-examination photo substitution -> 404           PASS
+protected Laravel route -> 302 signed Spaces URL     PASS
+JPEG display from real Spaces                        PASS
+unsigned Spaces object GET -> AccessDenied            PASS
+120-second signed URL expiry -> Request has expired   PASS
+Laravel login remains active after expiry             PASS
+new preview request issues a fresh working URL        PASS
+```
+
+DigitalOcean Spaces honored the signed response overrides:
+
+```text
+Content-Type: image/jpeg                              PASS
+Content-Disposition: inline; filename="evidence-33.jpg" PASS
+Cache-Control: private, no-store, max-age=0            PASS
+```
+
+Storage-log inspection found no `X-Amz-Signature` or `X-Amz-Credential`
+presigned URLs. No actual URL, access-key identifier, signature, secret, or
+temporary QA password is documented here.
+
+## Staff Authentication and Session Lifetime
+
+Staff authentication is intentionally simple and uses Laravel session
+authentication with hashed passwords, CSRF, and the existing `auth`/`guest`
+middleware:
+
+```text
+username + password
+```
+
+Email remains in the users table as nullable/optional data and is not an
+authentication identifier. The existing schema already provides a required,
+unique `username`, so no migration was required. Usernames are canonicalized as
+`strtolower(trim(username))` in model storage, login input, and the login
+throttle identity. The limiter remains five attempts per minute and keys by
+normalized username plus IP.
+
+Email verification, password reset, 2FA, SSO, enterprise IAM, and complex
+lockout/account-recovery flows are deliberately not implemented. Public users
+may submit examination forms; internal submission/evidence access requires an
+authenticated authorized staff role.
+
+The project default is `SESSION_LIFETIME=240`, meaning a four-hour inactivity
+lifetime for staff login sessions. This is separate from
+`PHOTO_PREVIEW_PRESIGN_TTL=120`: a staff user may remain logged in for hours
+while each individual private Spaces URL expires after approximately two
+minutes.
+
+Latest accepted automated checkpoint:
+
+```text
+focused authentication: 17 tests, 85 assertions
+full regular suite:     305 tests, 956 assertions
+```
+
+Existing local/Spaces preview regression coverage remained green. The earlier
+direct-upload status remains unchanged: **Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
 
 Step 3B.5 provides `photo-uploads:cleanup`, an hourly scheduled command with dry-run and batch-limit options. It stages expired unfinalized sessions into the durable cleanup queue, defers physical deletion through the configured photo transport, protects finalized evidence, and integrates explicit photo removal with the same queue. Historical storage orphans from before this queue existed are intentionally outside the scope of this implementation because the application has no authoritative filesystem inventory.
 
@@ -490,7 +614,7 @@ POST /examinations        examinations.store
 GET  /examinations/success examinations.success
 ```
 
-The create/store routes are guest-accessible; no authentication is required to submit. If a user happens to be authenticated, `auth()->user()` is passed to `ExaminationSubmissionService::submit()`, but no login/registration screens exist yet and no profile auto-fill is implemented.
+The create/store routes are guest-accessible; no authentication is required to submit. If a user happens to be authenticated, `auth()->user()` is passed to `ExaminationSubmissionService::submit()`, but profile auto-fill is not implemented.
 
 `ExaminationSubmissionRequest::prepareForValidation()` converts an empty-string `reason` (as posted by a `<select>` placeholder) to `null` before validation, nulls `form_type_other`/`reason_other` whenever their controlling field isn't `other`, and trims each `customs_form_numbers.*` array value (without deleting empty/duplicate entries, which must still fail validation) ahead of the DTO's own canonicalization. `customs_form_numbers` is validated as `required|array|min:1|max:255` with each `customs_form_numbers.*` as `required|string|max:100|distinct:ignore_case` (D023) — no DB `exists:` rule for the photo-session fields, which use the same basic-shape-only approach. Enum fields are validated with `Illuminate\Validation\Rule::enum(...)`; string length limits mirror the actual `examinations`/`examination_customs_form_numbers` table columns.
 

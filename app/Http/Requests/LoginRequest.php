@@ -11,19 +11,26 @@ class LoginRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'username' => strtolower(trim((string) $this->input('username', ''))),
+        ]);
+    }
+
     public function rules(): array
     {
         return [
-            'email' => ['required', 'email'],
+            'username' => ['required', 'string', 'max:50'],
             'password' => ['required', 'string'],
         ];
     }
 
     /**
-     * @return array{email: string, password: string}
+     * @return array{username: string, password: string}
      */
     public function credentials(): array
     {
-        return $this->only('email', 'password');
+        return $this->only('username', 'password');
     }
 }

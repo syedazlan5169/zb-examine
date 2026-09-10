@@ -50,4 +50,32 @@ class PhotoUploadObjectPathTest extends TestCase
             $this->assertFalse(PhotoUploadObjectPath::isLocalFinalized($path));
         }
     }
+
+    public function test_spaces_finalized_path_accepts_only_the_canonical_sealed_path(): void
+    {
+        $path = 'photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04/0123456789abcdef0123456789abcdef0123456789abcdef.jpg';
+
+        $this->assertTrue(PhotoUploadObjectPath::isSpacesFinalized($path));
+    }
+
+    public function test_spaces_finalized_path_rejects_noncanonical_and_unsafe_forms(): void
+    {
+        $validPrefix = 'photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04/';
+
+        foreach ([
+            'photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04.jpg',
+            'photo-upload-staging/01JAR7Z5G2R9D7RQP6H9P6FS03/01JAR7Z5G2R9D7RQP6H9P6FS04.jpg',
+            $validPrefix.'0123456789abcdef0123456789abcdef0123456789ABCDEf.jpg',
+            $validPrefix.'0123456789abcdef.jpg',
+            $validPrefix.'0123456789abcdef0123456789abcdef0123456789abcdeg.jpg',
+            $validPrefix.'0123456789abcdef0123456789abcdef0123456789abcdef.png',
+            '/'.$validPrefix.'0123456789abcdef0123456789abcdef0123456789abcdef.jpg',
+            'photo-uploads/../private.jpg',
+            $validPrefix.'0123456789abcdef0123456789abcdef0123456789abcdef.jpg/extra',
+            $validPrefix."0123456789abcdef0123456789abcdef0123456789abcdef.jpg\0trailing",
+            'photo-uploads/01JAR7Z5G2R9D7RQP6H9P6FS0I/01JAR7Z5G2R9D7RQP6H9P6FS04/0123456789abcdef0123456789abcdef0123456789abcdef.jpg',
+        ] as $path) {
+            $this->assertFalse(PhotoUploadObjectPath::isSpacesFinalized($path));
+        }
+    }
 }

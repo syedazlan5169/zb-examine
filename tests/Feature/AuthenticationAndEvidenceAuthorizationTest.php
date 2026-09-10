@@ -22,20 +22,36 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
 
         $response->assertOk()
             ->assertSee(__('auth.login'))
-            ->assertSee(__('auth.email'))
-            ->assertSee(__('auth.password'));
+            ->assertSee(__('auth.username'))
+            ->assertSee(__('auth.password'))
+            ->assertSee('name="username"', false)
+            ->assertDontSee('name="email"', false)
+            ->assertDontSee(__('auth.email'));
     }
 
-    public function test_valid_credentials_authenticate_and_regenerate_the_session(): void
+    public function test_login_page_renders_the_english_username_label(): void
+    {
+        app()->setLocale('en');
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('Username')
+            ->assertSee('Password')
+            ->assertSee('Sign in')
+            ->assertDontSee('Email');
+    }
+
+    public function test_valid_username_and_password_authenticate_and_regenerate_the_session(): void
     {
         $user = User::factory()->officer()->create([
-            'email' => 'officer@example.test',
+            'username' => 'officer-one',
+            'email' => null,
             'password' => 'correct-password',
         ]);
         $sessionId = $this->app['session']->getId();
 
         $response = $this->post(route('auth.login.store'), [
-            'email' => 'officer@example.test',
+            'username' => 'officer-one',
             'password' => 'correct-password',
         ]);
 
@@ -57,25 +73,75 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
         $this->actingAs(User::factory()->officer()->create());
 
         $this->post(route('auth.login.store'), [
-            'email' => 'another@example.test',
+            'username' => 'another-user',
             'password' => 'another-password',
         ])->assertRedirect(route('examinations.create'));
     }
 
-    public function test_invalid_credentials_are_rejected_without_authentication(): void
+    public function test_username_is_normalized_before_authentication(): void
+    {
+        $user = User::factory()->officer()->create([
+            'username' => 'officer.one',
+            'email' => null,
+            'password' => 'correct-password',
+        ]);
+
+        $this->post(route('auth.login.store'), [
+            'username' => '  Officer.One  ',
+            'password' => 'correct-password',
+        ])->assertRedirect(route('examinations.create'));
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_usernames_are_stored_in_canonical_form(): void
+    {
+        $user = User::factory()->create([
+            'username' => '  Officer.One  ',
+        ]);
+
+        $this->assertSame('officer.one', $user->username);
+    }
+
+    public function test_wrong_password_fails_with_a_generic_username_error(): void
     {
         User::factory()->officer()->create([
-            'email' => 'officer@example.test',
+            'username' => 'officer-one',
             'password' => 'correct-password',
         ]);
 
         $response = $this->from(route('login'))->post(route('auth.login.store'), [
-            'email' => 'officer@example.test',
+            'username' => 'officer-one',
             'password' => 'wrong-password',
         ]);
 
         $response->assertRedirect(route('login'))
-            ->assertSessionHasErrors(['email' => __('auth.failed')]);
+            ->assertSessionHasErrors(['username' => __('auth.failed')])
+            ->assertSessionMissing('password');
+        $this->assertGuest();
+    }
+
+    public function test_unknown_username_fails_with_the_same_generic_error(): void
+    {
+        $response = $this->from(route('login'))->post(route('auth.login.store'), [
+            'username' => 'unknown-user',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['username' => __('auth.failed')])
+            ->assertSessionMissing('password');
+        $this->assertGuest();
+    }
+
+    public function test_whitespace_only_username_fails_validation(): void
+    {
+        $this->from(route('login'))->post(route('auth.login.store'), [
+            'username' => '   ',
+            'password' => 'password',
+        ])->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['username']);
+
         $this->assertGuest();
     }
 
@@ -95,19 +161,41 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_repeated_invalid_login_attempts_are_throttled_by_normalized_email_and_ip(): void
+    public function test_repeated_invalid_login_attempts_share_a_normalized_username_and_ip_bucket(): void
     {
         foreach (range(1, 5) as $attempt) {
             $this->from(route('login'))->post(route('auth.login.store'), [
-                'email' => $attempt % 2 === 0 ? 'STAFF@example.test' : 'staff@example.test',
+                'username' => $attempt % 2 === 0 ? ' STAFF.One ' : 'staff.one',
                 'password' => 'wrong-password',
             ])->assertRedirect(route('login'));
         }
 
         $this->from(route('login'))->post(route('auth.login.store'), [
-            'email' => 'STAFF@example.test',
+            'username' => 'STAFF.ONE',
             'password' => 'wrong-password',
         ])->assertTooManyRequests();
+
+        $this->from(route('login'))->post(route('auth.login.store'), [
+            'username' => 'different-user',
+            'password' => 'wrong-password',
+        ])->assertRedirect(route('login'));
+    }
+
+    public function test_same_username_from_a_different_ip_uses_a_separate_throttle_bucket(): void
+    {
+        foreach (range(1, 5) as $attempt) {
+            $this->from(route('login'))->post(route('auth.login.store'), [
+                'username' => 'staff-one',
+                'password' => 'wrong-password',
+            ])->assertRedirect(route('login'));
+        }
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->from(route('login'))
+            ->post(route('auth.login.store'), [
+                'username' => 'staff-one',
+                'password' => 'wrong-password',
+            ])->assertRedirect(route('login'));
     }
 
     public function test_public_examination_form_remains_guest_accessible(): void

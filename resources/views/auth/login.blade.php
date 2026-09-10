@@ -11,22 +11,22 @@
             @csrf
 
             <div>
-                <label for="email" class="mb-1 block text-sm font-medium text-gray-900">
-                    {{ __('auth.email') }}
+                <label for="username" class="mb-1 block text-sm font-medium text-gray-900">
+                    {{ __('auth.username') }}
                 </label>
                 <input
-                    type="email"
-                    name="email"
-                    id="email"
-                    value="{{ old('email') }}"
-                    autocomplete="email"
+                    type="text"
+                    name="username"
+                    id="username"
+                    value="{{ old('username') }}"
+                    autocomplete="username"
                     required
                     autofocus
-                    @error('email') aria-invalid="true" aria-describedby="email-error" @enderror
-                    class="w-full rounded-lg border-2 px-4 py-3 text-base focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900 {{ $errors->has('email') ? 'border-red-600' : 'border-gray-300' }}"
+                    @error('username') aria-invalid="true" aria-describedby="username-error" @enderror
+                    class="w-full rounded-lg border-2 px-4 py-3 text-base focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900 {{ $errors->has('username') ? 'border-red-600' : 'border-gray-300' }}"
                 >
-                @error('email')
-                    <p id="email-error" class="mt-1 text-sm font-medium text-red-700">{{ $message }}</p>
+                @error('username')
+                    <p id="username-error" class="mt-1 text-sm font-medium text-red-700">{{ $message }}</p>
                 @enderror
             </div>
 

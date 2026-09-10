@@ -12,6 +12,14 @@ final class PhotoUploadObjectPath
         ) === 1;
     }
 
+    public static function isSpacesFinalized(string $storagePath): bool
+    {
+        return preg_match(
+            '#^photo-uploads/[0-9A-HJKMNP-TV-Z]{26}/[0-9A-HJKMNP-TV-Z]{26}/[a-f0-9]{48}\.jpg$#',
+            $storagePath,
+        ) === 1;
+    }
+
     public static function classifyStorage(string $storageDisk, string $storagePath): string
     {
         if ($storageDisk === config('zb-examine.photo_upload_direct_disk', 'photo_uploads_spaces') && (self::isStaging($storagePath) || self::isSealed($storagePath))) {

@@ -4,11 +4,13 @@ namespace App\Providers;
 
 use App\Models\ExaminationPhoto;
 use App\Policies\ExaminationPhotoPolicy;
+use App\Services\AwsSpacesGetPresigner;
 use App\Services\AwsSpacesObjectClient;
 use App\Services\AwsSpacesPutPresigner;
 use App\Services\DirectPhotoUploadAuthorizer;
 use App\Services\LocalPhotoUploadTransport;
 use App\Services\PhotoUploadTransport;
+use App\Services\SpacesGetPresigner;
 use App\Services\SpacesObjectClient;
 use App\Services\SpacesPhotoUploadAuthorizer;
 use App\Services\SpacesPutPresigner;
@@ -29,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(DirectPhotoUploadAuthorizer::class, SpacesPhotoUploadAuthorizer::class);
         $this->app->bind(SpacesObjectClient::class, AwsSpacesObjectClient::class);
         $this->app->bind(SpacesPutPresigner::class, AwsSpacesPutPresigner::class);
+        $this->app->bind(SpacesGetPresigner::class, AwsSpacesGetPresigner::class);
     }
 
     /**
@@ -39,9 +42,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ExaminationPhoto::class, ExaminationPhotoPolicy::class);
 
         RateLimiter::for('login', function (Request $request): Limit {
-            $email = strtolower(trim((string) $request->input('email', '')));
+            $username = strtolower(trim((string) $request->input('username', '')));
 
-            return Limit::perMinute(5)->by($email.'|'.$request->ip());
+            return Limit::perMinute(5)->by($username.'|'.$request->ip());
         });
 
         $presignTtl = (int) config('zb-examine.photo_upload_presign_ttl_seconds', 300);

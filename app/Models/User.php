@@ -39,6 +39,11 @@ class User extends Authenticatable
         ];
     }
 
+    public function setUsernameAttribute(string $username): void
+    {
+        $this->attributes['username'] = strtolower(trim($username));
+    }
+
     public function examinations(): HasMany
     {
         return $this->hasMany(Examination::class);

@@ -851,3 +851,87 @@ translated to "Attachment A (Withdrawal)" in English.
 **Locale switcher display simplified to `MY`/`EN`.** Internal locale codes (`ms`/`en`), URLs, and
 session behavior are unchanged — this is a display-only label change for a more compact,
 mobile-friendly control.
+
+## D027 - Authenticated Private Spaces Evidence Preview
+
+Finalized private evidence has two delivery modes. Local `photo_uploads` evidence
+continues to stream privately through Laravel. Finalized
+`photo_uploads_spaces` evidence is accessed only through the protected
+`GET /examinations/{examination}/photos/{photo}/preview` route, which applies
+authentication, scoped nested binding, and `ExaminationPhotoPolicy` before
+returning a short-lived presigned GET URL in an HTTP 302 redirect. Guests are
+redirected to login, agents receive 403, officers/admins are allowed, and a
+cross-examination photo substitution returns 404.
+
+Only this canonical finalized direct-upload path may be signed:
+
+```text
+photo-uploads/{session ULID}/{photo ULID}/{48-lowercase-hex}.jpg
+```
+
+Staging and malformed paths are rejected before presigning. The browser performs
+the final provider GET; Laravel performs no provider HEAD and does not proxy or
+download the Spaces object.
+
+`PHOTO_PREVIEW_PRESIGN_TTL` is separate from the direct-upload
+`PHOTO_UPLOAD_PRESIGN_TTL`. Its default is 120 seconds, with runtime bounds of
+60 to 300 seconds; malformed configuration falls back to 120 seconds. The
+signed `GetObject` request asks for `image/jpeg`, an inline server-generated
+`evidence-{photo-id}.jpg` filename, and `private, no-store, max-age=0` cache
+control. The application redirect is HTTP 302 with private no-store cache
+control, `Referrer-Policy: no-referrer`, and `X-Content-Type-Options: nosniff`;
+the redirect body is empty.
+
+Expected AWS/configuration/signing failures are represented by the dedicated
+`SpacesGetPresigningException` and mapped to
+`FinalizedEvidenceDeliveryUnavailable`/opaque HTTP 503. Unexpected programming
+errors are not swallowed as 503. A presigned URL may normally contain
+`X-Amz-Credential`, `X-Amz-Signature`, and `X-Amz-Expires`; the secret access key
+is never placed in the URL, and the full URL is never logged or persisted.
+
+The accepted real-provider checkpoint is recorded as:
+
+```text
+Authenticated private Spaces evidence preview - PROVIDER QA PASSED
+```
+
+Against a real finalized private Spaces-backed `ExaminationPhoto`, officer and
+admin preview passed, authenticated agent preview returned 403, guest preview
+redirected to login, cross-examination substitution returned 404, the protected
+route returned 302, the JPEG displayed from Spaces, unsigned object GET returned
+AccessDenied, the 120-second URL expired as expected, the Laravel session
+remained active after expiry, and a new application request issued a fresh
+working URL. DigitalOcean Spaces honored the signed Content-Type,
+Content-Disposition, and Cache-Control overrides. Storage-log inspection found
+no signed URL query values. No URL, access-key identifier, signature, secret, or
+temporary QA password is recorded here.
+
+## D028 - Simple Username Staff Authentication and Session Lifetime
+
+Staff authentication intentionally uses Laravel session authentication with
+hashed passwords, CSRF, and the existing auth/guest middleware. The login
+identifier is `username + password`, not email. The existing schema already has
+a required unique username and a nullable unique email column, so no migration
+was required; email remains optional data and is not used for authentication.
+
+Usernames are canonicalized as `strtolower(trim(username))` when stored, when
+login input is prepared, and when the login throttle identity is built. The
+existing lightweight limiter remains five attempts per minute and keys by
+normalized username plus IP. The intended security boundary is deliberately
+simple: public users may submit examination forms, while internal
+submission/evidence access requires authenticated authorized staff.
+
+Email verification, password reset, 2FA, SSO, enterprise IAM, and complex
+lockout/account-recovery flows are intentionally outside this application
+contract.
+
+The project default is `SESSION_LIFETIME=240`, a four-hour inactivity lifetime
+for staff login sessions. This is independent of
+`PHOTO_PREVIEW_PRESIGN_TTL=120`: a staff session may remain active for hours
+while an individual private Spaces URL expires after approximately two minutes.
+
+The accepted automated checkpoint for this correction is 17 focused
+authentication tests with 85 assertions and 305 tests with 956 assertions in the
+full regular suite. Existing local/Spaces preview regression coverage remained
+green. This decision does not change the earlier direct-upload status:
+**Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**

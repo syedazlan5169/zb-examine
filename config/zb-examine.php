@@ -35,6 +35,8 @@ return [
 
     'photo_upload_presign_ttl_seconds' => (int) env('PHOTO_UPLOAD_PRESIGN_TTL', 300),
 
+    'photo_preview_presign_ttl_seconds' => env('PHOTO_PREVIEW_PRESIGN_TTL', 120),
+
     /*
     |--------------------------------------------------------------------------
     | Photo Upload Cleanup Configuration
