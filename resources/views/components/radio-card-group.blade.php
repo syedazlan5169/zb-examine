@@ -8,7 +8,7 @@
 
 @php
     $options = collect($enum::cases())->mapWithKeys(
-        fn ($case) => [$case->value => __("{$translationPrefix}.{$case->value}")]
+        fn ($case) => [$case->value => $case->label()]
     );
 @endphp
 

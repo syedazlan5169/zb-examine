@@ -12,7 +12,7 @@ The submission-number generator is implemented: `App\Services\SubmissionNumberGe
 
 The core examination submission pathway is implemented: `App\Services\ExaminationSubmissionService` creates one complete submission by composing the customs-form-number normalizer, the number generator, and photo finalization. See D019/D022/D023 in docs/DECISIONS.md.
 
-The real Examination form, photo integration, customs-form-number UI, expired-session/orphan-object cleanup, simple staff authentication, staff retrieval workspace, authenticated private evidence preview, and Registered Agent Profile + Examination Form Auto-Fill are implemented. Authentication uses username/password; Agent Submission History remains unimplemented.
+The real Examination form, photo integration, customs-form-number UI, expired-session/orphan-object cleanup, simple staff authentication, staff retrieval workspace, authenticated private evidence preview, Registered Agent Profile + Examination Form Auto-Fill, Agent Submission History, and canonical Malay business vocabulary standardization are implemented. Authentication uses username/password; the Agent personal-history surface is now a distinct, owner-scoped feature separate from the staff workspace.
 
 Step 3B.6A adds the private `photo_uploads_spaces` filesystem disk and isolated
 DigitalOcean Spaces primitives. The existing local `photo_uploads` disk remains

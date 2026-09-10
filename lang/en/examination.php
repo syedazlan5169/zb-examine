@@ -31,6 +31,14 @@ return [
         'page' => 'Page :current of :last',
     ],
 
+    'agent' => [
+        'navigation' => 'My Submissions',
+        'list_title' => 'My Submissions',
+        'detail_title' => 'Submission Details',
+        'empty_state' => 'No submissions found.',
+        'back_to_list' => 'Back to submissions',
+    ],
+
     'sections' => [
         'submission' => 'Submission',
         'agent_information' => 'Agent Information',
@@ -60,43 +68,6 @@ return [
 
     'reason_placeholder' => 'No specific reason',
     'choose_option' => 'Please select…',
-
-    'options' => [
-        'location' => [
-            'container_gate_terminal' => 'Container Gate Terminal',
-            'conventional_gate' => 'Conventional Gate',
-        ],
-        'form_type' => [
-            'k1' => 'Customs 1 (K1)',
-            'k2' => 'Customs 2 (K2)',
-            'k3' => 'Customs 3 (K3)',
-            'k8' => 'Customs 8 (K8)',
-            'attachment_a' => 'Lampiran A (Tarik Balik)',
-            'ucustoms' => 'uCustoms',
-            'ata_carnet' => 'ATA Carnet',
-            'other' => 'Other',
-        ],
-        'container_status' => [
-            'fcl' => 'FCL',
-            'lcl' => 'LCL',
-            'conventional' => 'Conventional',
-        ],
-        'reason' => [
-            'assessing_officer_instruction' => 'Assessing Officer Instruction',
-            'drawback' => 'Drawback',
-            'export_cancelled' => 'Export Cancelled',
-            'transfer_k8' => 'Transfer (K8)',
-            'disposal' => 'Disposal',
-            'ata_carnet' => 'ATA Carnet',
-            'temporary_import' => 'Temporary Import',
-            'temporary_export' => 'Temporary Export',
-            'other' => 'Other',
-        ],
-        'attending_officer_type' => [
-            'customs' => 'Customs',
-            'swcorps' => 'SWCorps',
-        ],
-    ],
 
     'customs_form_numbers' => [
         'add' => 'Add',

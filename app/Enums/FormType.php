@@ -12,4 +12,18 @@ enum FormType: string
     case UCustoms = 'ucustoms';
     case AtaCarnet = 'ata_carnet';
     case Other = 'other';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::K1 => 'K1',
+            self::K2 => 'K2',
+            self::K3 => 'K3',
+            self::K8 => 'K8',
+            self::AttachmentA => 'LAMPIRAN A (TARIK BALIK)',
+            self::UCustoms => 'uCUSTOMS',
+            self::AtaCarnet => 'ATA CARNET',
+            self::Other => 'LAIN-LAIN',
+        };
+    }
 }

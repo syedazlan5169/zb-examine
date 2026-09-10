@@ -1001,3 +1001,46 @@ and there is no arbitrary user-id profile route. There is no profile-completenes
 gate before submission. No migration was required because the existing `users`
 schema already has `name`, `phone`, `agent_code`, `company_name`, and
 `station_code`.
+
+## D031 - Agent Submission History Ownership and Personal History Surface
+
+Agent Submission History is a separate personal-history surface from the staff
+operational retrieval workspace. Agent ownership is based exclusively on
+`Examination.user_id`, and the personal detail route resolves only records owned
+by the authenticated Agent. `ExaminationPolicy::viewAny` and
+`ExaminationPolicy::view` remain staff-only. The Agent uses a dedicated
+ownership authorization method (`viewOwn`), and guest submissions are not
+claimable or recoverable through the personal-history surface.
+
+This design keeps the ownership boundary explicit and durable, avoids
+IDOR/horizontal leakage, keeps staff operational authorization separate from the
+personal history surface, and prevents profile or agent-code ambiguity from
+becoming an ownership signal. Agents may preview finalized evidence only when
+`photo.examination.user_id === authenticated Agent id`, and the existing
+protected route remains the single authorized evidence delivery path.
+
+## D032 - Canonical Malay Business Vocabulary and Enum-Owned Labels
+
+UI chrome is localized, but controlled examination values are not translated.
+The approved rule is that UI language is separate from controlled business
+vocabulary. The same canonical Malay vocabulary is displayed in both MY and EN,
+while surrounding labels and instructions adapt to locale.
+
+Controlled examination values are owned by the enums rather than translation
+files: `ExaminationLocation`, `FormType`, `ContainerStatus`,
+`ExaminationReason`, and `AttendingOfficerType`. Stable stored machine values
+remain persisted as enum values such as `container_gate_terminal`, `k1`, `fcl`,
+and `customs`. The enum `label()` methods provide the canonical presentation
+vocabulary and are the source of truth for user-visible business values.
+
+Arbitrary free-text snapshot values remain preserved exactly as entered
+(`agent_name`, `agent_company_name`, `form_type_other`, `reason_other`, and other
+explanatory text). They are not automatically translated or uppercased.
+Identifier normalization remains intentionally separate from this decision; no new
+normalization was introduced for `agent_code`, `agent_station_code`, or customs
+form numbers.
+
+This is the durable product rule because operational records should not appear to
+change when users switch locale, Agent and Officer users must see the same
+submitted business meaning, and translation files must not be treated as the
+semantic definition of persisted business data.

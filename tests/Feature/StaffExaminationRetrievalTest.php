@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ExaminationReason;
+use App\Enums\FormType;
 use App\Models\Examination;
 use App\Models\ExaminationCustomsFormNumber;
 use App\Models\ExaminationPhoto;
@@ -212,9 +214,9 @@ class StaffExaminationRetrievalTest extends TestCase
         $response->assertOk()
             ->assertSee('ZB-DETAIL')
             ->assertSee('10/09/2026 08:30')
-            ->assertSee(__('examination.options.form_type.other'))
+            ->assertSee(FormType::Other->label())
             ->assertSee('Special form')
-            ->assertSee(__('examination.options.reason.other'))
+            ->assertSee(ExaminationReason::Other->label())
             ->assertSee('Special reason')
             ->assertSee('FORM-1')
             ->assertSee('FORM-2')

@@ -117,10 +117,10 @@
                                 'container_status' => __('examination.fields.container_status'),
                                 'attending_officer_type' => __('examination.fields.attending_officer_type'),
                             ] as $field => $label)
-                                <div><dt class="text-gray-600">{{ $label }}</dt><dd>{{ __("examination.options.{$field}.".$selectedExamination->{$field}->value) }}</dd></div>
+                                <div><dt class="text-gray-600">{{ $label }}</dt><dd>{{ $selectedExamination->{$field}->label() }}</dd></div>
                             @endforeach
-                            <div><dt class="text-gray-600">{{ __('examination.fields.form_type') }}</dt><dd>{{ __("examination.options.form_type.".$selectedExamination->form_type->value) }}{{ $selectedExamination->form_type->value === 'other' && $selectedExamination->form_type_other ? ' — '.$selectedExamination->form_type_other : '' }}</dd></div>
-                            <div><dt class="text-gray-600">{{ __('examination.fields.reason') }}</dt><dd>{{ $selectedExamination->reason ? __("examination.options.reason.".$selectedExamination->reason->value).($selectedExamination->reason->value === 'other' && $selectedExamination->reason_other ? ' — '.$selectedExamination->reason_other : '') : __('examination.reason_placeholder') }}</dd></div>
+                            <div><dt class="text-gray-600">{{ __('examination.fields.form_type') }}</dt><dd>{{ $selectedExamination->form_type->label() }}{{ $selectedExamination->form_type->value === 'other' && $selectedExamination->form_type_other ? ' — '.$selectedExamination->form_type_other : '' }}</dd></div>
+                            <div><dt class="text-gray-600">{{ __('examination.fields.reason') }}</dt><dd>{{ $selectedExamination->reason ? $selectedExamination->reason->label().($selectedExamination->reason->value === 'other' && $selectedExamination->reason_other ? ' — '.$selectedExamination->reason_other : '') : __('examination.reason_placeholder') }}</dd></div>
                         </dl>
                     </section>
 

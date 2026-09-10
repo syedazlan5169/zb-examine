@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgentExaminationHistoryController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ExaminationController;
 use App\Http\Controllers\ExaminationPhotoPreviewController;
@@ -16,6 +17,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
 });
+
+Route::middleware('auth')
+    ->prefix('my-examinations')
+    ->name('agent.examinations.')
+    ->group(function () {
+        Route::get('/', [AgentExaminationHistoryController::class, 'index'])->name('index');
+        Route::get('/{examination}', [AgentExaminationHistoryController::class, 'show'])->name('show');
+    });
+
 Route::get('/examinations', [StaffExaminationController::class, 'index'])
     ->middleware('auth')
     ->name('examinations.index');

@@ -70,7 +70,7 @@
                         <option value="" disabled {{ old('form_type') ? '' : 'selected' }}>{{ __('examination.choose_option') }}</option>
                         @foreach (\App\Enums\FormType::cases() as $case)
                             <option value="{{ $case->value }}" {{ old('form_type') === $case->value ? 'selected' : '' }}>
-                                {{ __("examination.options.form_type.{$case->value}") }}
+                                {{ $case->label() }}
                             </option>
                         @endforeach
                     </select>
@@ -167,7 +167,7 @@
                         <option value="" {{ old('reason') ? '' : 'selected' }}>{{ __('examination.reason_placeholder') }}</option>
                         @foreach (\App\Enums\ExaminationReason::cases() as $case)
                             <option value="{{ $case->value }}" {{ old('reason') === $case->value ? 'selected' : '' }}>
-                                {{ __("examination.options.reason.{$case->value}") }}
+                                {{ $case->label() }}
                             </option>
                         @endforeach
                     </select>

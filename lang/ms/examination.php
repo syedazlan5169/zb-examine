@@ -31,6 +31,14 @@ return [
         'page' => 'Halaman :current daripada :last',
     ],
 
+    'agent' => [
+        'navigation' => 'Penyerahan Saya',
+        'list_title' => 'Penyerahan Saya',
+        'detail_title' => 'Butiran Penyerahan',
+        'empty_state' => 'Tiada penyerahan ditemui.',
+        'back_to_list' => 'Kembali ke penyerahan',
+    ],
+
     'sections' => [
         'submission' => 'Penyerahan',
         'agent_information' => 'Maklumat Ejen',
@@ -60,43 +68,6 @@ return [
 
     'reason_placeholder' => 'Tiada sebab khusus',
     'choose_option' => 'Sila pilih…',
-
-    'options' => [
-        'location' => [
-            'container_gate_terminal' => 'TERMINAL GATE KONTENA',
-            'conventional_gate' => 'GATE CONVENTIONAL',
-        ],
-        'form_type' => [
-            'k1' => 'KASTAM 1 (K1)',
-            'k2' => 'KASTAM 2 (K2)',
-            'k3' => 'KASTAM 3 (K3)',
-            'k8' => 'KASTAM 8 (K8)',
-            'attachment_a' => 'Lampiran A (Tarik Balik)',
-            'ucustoms' => 'uCUSTOMS',
-            'ata_carnet' => 'ATA CARNET',
-            'other' => 'Lain-lain',
-        ],
-        'container_status' => [
-            'fcl' => 'FCL',
-            'lcl' => 'LCL',
-            'conventional' => 'CONVENTIONAL',
-        ],
-        'reason' => [
-            'assessing_officer_instruction' => 'ARAHAN PEGAWAI PENAKSIR',
-            'drawback' => 'DRAWBACK',
-            'export_cancelled' => 'EKSPORT DIBATALKAN',
-            'transfer_k8' => 'PEMINDAHAN (K8)',
-            'disposal' => 'PELUPUSAN',
-            'ata_carnet' => 'ATA CARNET',
-            'temporary_import' => 'IMPORT SEMENTARA',
-            'temporary_export' => 'EKSPORT SEMENTARA',
-            'other' => 'Lain-lain',
-        ],
-        'attending_officer_type' => [
-            'customs' => 'KASTAM',
-            'swcorps' => 'SWCORPS',
-        ],
-    ],
 
     'customs_form_numbers' => [
         'add' => 'Tambah',

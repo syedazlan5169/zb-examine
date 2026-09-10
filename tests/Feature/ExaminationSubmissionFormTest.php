@@ -30,13 +30,14 @@ class ExaminationSubmissionFormTest extends TestCase
         $this->get('/')->assertOk();
     }
 
-    public function test_lampiran_a_uses_the_exact_malay_term_in_both_locales(): void
+    public function test_lampiran_a_uses_the_exact_canonical_malay_term_in_both_locales(): void
     {
-        $this->get('/')->assertOk()->assertSee('Lampiran A (Tarik Balik)', false);
+        $this->get('/')->assertOk()->assertSee('LAMPIRAN A (TARIK BALIK)', false);
 
         $this->get('/language/en');
-        $this->get('/')->assertOk()->assertSee('Lampiran A (Tarik Balik)', false);
+        $this->get('/')->assertOk()->assertSee('LAMPIRAN A (TARIK BALIK)', false);
 
+        $this->assertStringNotContainsString('Lampiran A (Tarik Balik)', $this->get('/')->getContent());
         $this->assertStringNotContainsString('Attachment A', $this->get('/')->getContent());
     }
 
@@ -79,6 +80,22 @@ class ExaminationSubmissionFormTest extends TestCase
             ->assertSee('Examine Registration System')
             ->assertSee('Examination Submission')
             ->assertDontSee('Sistem Daftar Pemeriksaan');
+    }
+
+    public function test_controlled_business_values_use_the_canonical_malay_business_vocabulary_in_both_locales(): void
+    {
+        $this->get('/')->assertOk()->assertSee('TERMINAL GATE KONTENA')->assertSee('FCL')->assertSee('K1');
+
+        $this->get('/language/en');
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('TERMINAL GATE KONTENA')
+            ->assertSee('FCL')
+            ->assertSee('K1')
+            ->assertSee('Examination Submission');
+
+        $this->assertStringNotContainsString('Container Gate Terminal', $this->get('/')->getContent());
+        $this->assertStringNotContainsString('Container Gate Terminal', $this->get('/')->getContent());
     }
 
     public function test_required_fields_are_rejected(): void

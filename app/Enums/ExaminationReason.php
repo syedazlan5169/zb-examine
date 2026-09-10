@@ -13,4 +13,19 @@ enum ExaminationReason: string
     case TemporaryImport = 'temporary_import';
     case TemporaryExport = 'temporary_export';
     case Other = 'other';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::AssessingOfficerInstruction => 'ARAHAN PEGAWAI PENAKSIR',
+            self::Drawback => 'DRAWBACK',
+            self::ExportCancelled => 'EKSPORT DIBATALKAN',
+            self::TransferK8 => 'PEMINDAHAN (K8)',
+            self::Disposal => 'PELUPUSAN',
+            self::AtaCarnet => 'ATA CARNET',
+            self::TemporaryImport => 'IMPORT SEMENTARA',
+            self::TemporaryExport => 'EKSPORT SEMENTARA',
+            self::Other => 'LAIN-LAIN',
+        };
+    }
 }

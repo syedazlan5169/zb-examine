@@ -12,6 +12,13 @@ class ExaminationPhotoPolicy
     {
         return $examinationPhoto->exists
             && $examinationPhoto->examination_id !== null
-            && in_array($user->role, [UserRole::Officer, UserRole::Admin], true);
+            && (
+                in_array($user->role, [UserRole::Officer, UserRole::Admin], true)
+                ||
+                (
+                    $user->role === UserRole::Agent
+                    && $examinationPhoto->examination->user_id === $user->id
+                )
+            );
     }
 }
