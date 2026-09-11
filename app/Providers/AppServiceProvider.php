@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Models\Examination;
 use App\Models\ExaminationPhoto;
+use App\Models\User;
 use App\Policies\ExaminationPhotoPolicy;
 use App\Policies\ExaminationPolicy;
+use App\Policies\UserPolicy;
 use App\Services\AwsSpacesGetPresigner;
 use App\Services\AwsSpacesObjectClient;
 use App\Services\AwsSpacesPutPresigner;
@@ -43,9 +45,10 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Examination::class, ExaminationPolicy::class);
         Gate::policy(ExaminationPhoto::class, ExaminationPhotoPolicy::class);
+        Gate::policy(User::class, UserPolicy::class);
 
         RateLimiter::for('login', function (Request $request): Limit {
-            $username = strtolower(trim((string) $request->input('username', '')));
+            $username = User::normalizeUsername((string) $request->input('username', ''));
 
             return Limit::perMinute(5)->by($username.'|'.$request->ip());
         });

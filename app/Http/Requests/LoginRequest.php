@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\UserAccountRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class LoginRequest extends FormRequest
@@ -14,14 +15,14 @@ class LoginRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'username' => strtolower(trim((string) $this->input('username', ''))),
+            'username' => UserAccountRules::normalizeUsername((string) $this->input('username', '')),
         ]);
     }
 
     public function rules(): array
     {
         return [
-            'username' => ['required', 'string', 'max:50'],
+            'username' => UserAccountRules::username(),
             'password' => ['required', 'string'],
         ];
     }
@@ -31,6 +32,10 @@ class LoginRequest extends FormRequest
      */
     public function credentials(): array
     {
-        return $this->only('username', 'password');
+        return [
+            'username' => $this->validated('username'),
+            'password' => $this->validated('password'),
+            'is_active' => true,
+        ];
     }
 }

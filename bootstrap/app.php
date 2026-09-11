@@ -3,6 +3,7 @@
 use App\Exceptions\PhotoUploadInvalid;
 use App\Exceptions\PhotoUploadSessionInvalid;
 use App\Exceptions\PhotoUploadStorageException;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'active' => EnsureUserIsActive::class,
+        ]);
         $middleware->trustProxies(
             at: ['REMOTE_ADDR'],
             headers: Request::HEADER_X_FORWARDED_FOR

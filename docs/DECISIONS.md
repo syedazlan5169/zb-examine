@@ -936,6 +936,41 @@ full regular suite. Existing local/Spaces preview regression coverage remained
 green. This decision does not change the earlier direct-upload status:
 **Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
 
+## D034 - Local User and Account Management Module
+
+The User and Account Management module is implemented and tested locally after
+the currently deployed production release; this decision does not claim a
+production deployment. Public self-registration always creates an active
+`agent`, while only an authenticated `admin` may create users or assign the
+existing `agent`, `officer`, and `admin` roles.
+
+Account removal is represented by the additive non-null `users.is_active`
+boolean, defaulting to `true` so existing production users remain active during
+migration. Inactive users cannot authenticate and an active-status middleware
+logs out an already-authenticated inactive user on the next protected request.
+Admins cannot demote or deactivate themselves, and a transactional deterministic
+row-locking invariant prevents the system from reaching zero active admins.
+
+Users may edit their own name and optional email. Existing Agent business
+profile fields remain Agent-only. Users change their own password with the
+current password; an Admin may reset another user's password but may not use the
+administrative reset endpoint on themselves. Remember tokens rotate, and the
+current database session driver permits targeted deletion of other sessions.
+
+Security-sensitive administrative mutations log actor/target identifiers and
+old/new role or activation values where applicable, but never passwords, hashes,
+tokens, credentials, CSRF values, or session identifiers. Forgot-password email
+recovery, email verification redesign, 2FA, SSO, permissions packages, audit
+tables/packages, deletion, `last_login_at`, and `password_changed_at` remain
+deferred.
+
+The local verification checkpoint for this module is **PASS**: the normal suite
+passed 393 tests and 1,308 assertions, and the dedicated real-MySQL
+`UserAdminInvariantConcurrencyTest` passed 2 tests and 9 assertions. The
+concurrency scenarios cover competing admin demotions and a mixed
+deactivation/demotion race. This checkpoint is local-only and does not claim
+production deployment.
+
 ## D029 - Staff Examination Retrieval and Split Review Workspace
 
 Internal examination retrieval is available only to authenticated `officer` and

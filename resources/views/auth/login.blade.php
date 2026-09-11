@@ -52,5 +52,10 @@
                 {{ __('auth.sign_in') }}
             </button>
         </form>
+
+        <p class="mt-5 text-center text-sm text-gray-600">
+            {{ __('auth.no_account') }}
+            <a href="{{ route('register') }}" class="font-semibold text-gray-900 underline">{{ __('auth.register') }}</a>
+        </p>
     </div>
 @endsection

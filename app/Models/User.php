@@ -16,12 +16,10 @@ class User extends Authenticatable
         'username',
         'name',
         'email',
-        'password',
         'phone',
         'agent_code',
         'company_name',
         'station_code',
-        'role',
         'preferred_locale',
     ];
 
@@ -36,12 +34,18 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'is_active' => 'boolean',
         ];
     }
 
     public function setUsernameAttribute(string $username): void
     {
-        $this->attributes['username'] = strtolower(trim($username));
+        $this->attributes['username'] = self::normalizeUsername($username);
+    }
+
+    public static function normalizeUsername(string $username): string
+    {
+        return strtolower(trim($username));
     }
 
     public function examinations(): HasMany

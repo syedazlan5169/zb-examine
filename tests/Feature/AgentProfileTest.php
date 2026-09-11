@@ -43,26 +43,60 @@ class AgentProfileTest extends TestCase
             ->assertSee('Agent User');
     }
 
-    public function test_officer_is_forbidden_from_profile(): void
+    public function test_officer_can_view_and_update_general_profile(): void
     {
-        $this->actingAs(User::factory()->officer()->create())
-            ->get(route('profile.edit'))
-            ->assertForbidden();
+        $user = User::factory()->officer()->create();
 
-        $this->actingAs(User::factory()->officer()->create())
-            ->patch(route('profile.update'), [])
-            ->assertForbidden();
+        $this->actingAs($user)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee(__('profile.account'))
+            ->assertSee(__('users.name'))
+            ->assertDontSee(__('examination.fields.agent_code'));
+
+        $this->actingAs($user)
+            ->patch(route('profile.update'), [
+                'name' => 'Updated Officer',
+                'email' => 'officer.updated@example.com',
+            ])
+            ->assertRedirect(route('profile.edit'));
     }
 
-    public function test_admin_is_forbidden_from_profile(): void
+    public function test_admin_can_view_general_profile(): void
     {
         $this->actingAs(User::factory()->admin()->create())
             ->get(route('profile.edit'))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertSee(__('profile.account'))
+            ->assertDontSee(__('examination.fields.agent_code'));
+    }
 
-        $this->actingAs(User::factory()->admin()->create())
-            ->patch(route('profile.update'), [])
-            ->assertForbidden();
+    public function test_officer_and_admin_cannot_update_agent_only_fields(): void
+    {
+        foreach ([UserRole::Officer, UserRole::Admin] as $role) {
+            $user = User::factory()->state([
+                'role' => $role,
+                'phone' => 'original-phone',
+                'agent_code' => 'original-code',
+                'company_name' => 'Original Company',
+                'station_code' => 'original-station',
+            ])->create();
+
+            $this->actingAs($user)->patch(route('profile.update'), [
+                'name' => 'Updated Name',
+                'email' => 'updated-'.$role->value.'@example.com',
+                'phone' => 'tampered-phone',
+                'agent_code' => 'tampered-code',
+                'company_name' => 'Tampered Company',
+                'station_code' => 'tampered-station',
+            ])->assertRedirect(route('profile.edit'));
+
+            $user->refresh();
+            $this->assertSame('original-phone', $user->phone);
+            $this->assertSame('original-code', $user->agent_code);
+            $this->assertSame('Original Company', $user->company_name);
+            $this->assertSame('original-station', $user->station_code);
+        }
     }
 
     public function test_agent_can_update_profile_fields(): void
@@ -138,7 +172,7 @@ class AgentProfileTest extends TestCase
         $user->refresh();
 
         $this->assertSame('agent-one', $user->username);
-        $this->assertSame('agent@example.com', $user->email);
+        $this->assertSame('hacker@example.com', $user->email);
         $this->assertSame(UserRole::Agent, $user->role);
         $this->assertTrue(Hash::check('correct-password', $user->password));
         $this->assertNotSame('new-password', $user->password);

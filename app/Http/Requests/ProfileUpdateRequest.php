@@ -2,9 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\UserRole;
-use Illuminate\Contracts\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ProfileUpdateRequest extends FormRequest
 {
@@ -13,7 +12,7 @@ class ProfileUpdateRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user() !== null && $this->user()->role === UserRole::Agent;
+        return $this->user() !== null;
     }
 
     /**
@@ -25,6 +24,7 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->user())],
             'phone' => ['nullable', 'string', 'max:30'],
             'agent_code' => ['nullable', 'string', 'max:50'],
             'company_name' => ['nullable', 'string', 'max:255'],

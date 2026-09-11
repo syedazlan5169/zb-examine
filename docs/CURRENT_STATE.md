@@ -2,6 +2,38 @@
 
 Last updated: 2026-09-11
 
+## User and Account Management — Implemented Locally, Not Deployed
+
+The User and Account Management module is implemented and tested in the local
+repository after the currently deployed production release. It has not been
+deployed to production.
+
+The local implementation adds public self-registration, which always creates an
+active `agent`, admin-only user management, all-role My Account access, password
+changes, admin password resets, and account activation/deactivation. The only
+schema change is the additive `users.is_active` boolean with a non-null `true`
+default; existing users remain active and historical examination relationships
+are preserved.
+
+Role and activation changes use a transactional last-active-admin invariant with
+deterministic MySQL row locking. Admins cannot demote or deactivate themselves,
+the admin reset endpoint cannot reset the current admin, and deactivated users
+are rejected at login and logged out by active-account middleware on their next
+protected request. Security-sensitive administrative actions emit structured
+application logs without passwords, hashes, tokens, or session identifiers.
+
+Local verification now includes the dedicated real-MySQL concurrency suite:
+`UserAdminInvariantConcurrencyTest` passed 2 tests and 9 assertions, covering
+both competing demotions and the mixed deactivation/demotion race. The normal
+local suite passed 393 tests and 1,308 assertions with zero failures or errors;
+the frontend production build also passed. These results are local verification
+only and do not represent a production deployment.
+
+Forgot-password email recovery, email verification redesign, 2FA, SSO,
+permissions packages, audit tables/packages, deletion, `last_login_at`, and
+`password_changed_at` remain deferred. Production migration, preflight, and live
+verification remain deployment work and have not been performed.
+
 ## P3 Production Edge Contract
 
 Status: **Repository-side production edge ready; live activation deferred to P4.**

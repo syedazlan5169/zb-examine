@@ -38,15 +38,22 @@
 
                     <div class="flex flex-wrap items-center gap-2 text-sm font-medium">
                         @auth
+                            <a href="{{ route('profile.edit') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                {{ __('profile.title') }}
+                            </a>
+
                             @if (auth()->user()->role === \App\Enums\UserRole::Agent)
                                 <a href="{{ route('agent.examinations.index') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                                     {{ __('examination.agent.navigation') }}
                                 </a>
 
-                                <a href="{{ route('profile.edit') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                                    {{ __('profile.title') }}
-                                </a>
                             @endif
+
+                            @can('viewAny', \App\Models\User::class)
+                                <a href="{{ route('admin.users.index') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                    {{ __('users.navigation') }}
+                                </a>
+                            @endcan
 
                             @can('viewAny', \App\Models\Examination::class)
                                 <a href="{{ route('examinations.index') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -63,6 +70,9 @@
                         @else
                             <a href="{{ route('login') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                                 {{ __('auth.login') }}
+                            </a>
+                            <a href="{{ route('register') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                {{ __('auth.register') }}
                             </a>
                         @endauth
                     </div>
