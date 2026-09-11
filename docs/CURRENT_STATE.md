@@ -1,6 +1,53 @@
 # ZB Examine — Current State
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
+
+## P3 Production Edge Contract
+
+Status: **Repository-side production edge ready; live activation deferred to P4.**
+
+P3 defines the production environment, host-Nginx, trusted-proxy, and DigitalOcean
+Spaces CORS contracts without deploying them. Laravel trusts only its immediate
+FastCGI peer through Laravel 13's `REMOTE_ADDR` proxy token and consumes only the
+forwarded client, host, port, and protocol headers established by the host edge.
+The host-Nginx template rejects unknown hosts, redirects the exact HTTP hostname
+to its fixed HTTPS equivalent, terminates TLS, overwrites public forwarding
+headers, and proxies only to loopback-bound Docker Nginx at `127.0.0.1:8081`.
+
+Nginx request-header forwarding to FastCGI was verified against the Nginx module
+contract: it is enabled by default, and incoming HTTP headers are exposed as
+`HTTP_*` FastCGI parameters. The existing Docker Nginx configuration therefore
+requires no redundant forwarded-header mappings. PHP-FPM remains unpublished,
+Docker Nginx remains loopback-only at the host boundary, and the host edge is the
+authoritative header-sanitization boundary.
+
+Production Compose interpolation and Laravel runtime values have separate,
+placeholder-only templates under `deploy/env`. Future real files belong at
+`/etc/zb-examine/compose.env` and `/etc/zb-examine/laravel.env`; the directory
+should use mode `0750` and files `0640` with a deployment-user/group model, or
+`0600` when Compose always runs through sudo. `APP_KEY` is generated exactly
+once using `php artisan key:generate --show`, stored directly in the protected
+runtime environment, shared by app and scheduler, retained across deploys and
+rollbacks, and never committed, baked into an image, or generated during
+startup. Initial production deployment continues without environment-specific
+Laravel config caches.
+
+The tracked Spaces CORS artifact is XML for DigitalOcean's documented
+`s3cmd setcors deploy/spaces/cors.xml s3://space-probono-apps` workflow after the
+example has been rendered outside Git. It permits only browser `PUT` requests from
+`https://<production-domain>` with `Content-Type`, exposes no response headers,
+and uses a 300-second production preflight cache. P4 may temporarily lower that
+cache while validating changes. CORS does not grant object access: the bucket
+remains private, CDN remains off, and authorization remains presigned staging
+PUT, authenticated server SDK access, and short-lived signed preview GET.
+
+Live activation remains blocked on the real production domain, a Let's Encrypt
+registration/notification email if required, VPS deployment, DNS, certificate
+issuance, and applying the Spaces CORS policy. P4 also owns migrations, backups,
+UFW/SSH hardening, initial users, and live production verification. P3 does not
+mean production is deployed.
+
+**Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
 
 ## Project Status
 

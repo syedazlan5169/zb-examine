@@ -1044,3 +1044,60 @@ This is the durable product rule because operational records should not appear t
 change when users switch locale, Agent and Officer users must see the same
 submitted business meaning, and translation files must not be treated as the
 semantic definition of persisted business data.
+
+## D033 - Production Internet Edge and Environment Contract
+
+Production TLS terminates at host Nginx. The exact production hostname owns
+public ports 80 and 443, while Docker Nginx remains reachable only through
+`127.0.0.1:8081`. Host Nginx rejects unknown hosts, preserves an HTTP ACME
+challenge path, redirects normal HTTP traffic to the fixed canonical HTTPS
+hostname, overwrites all trusted forwarding headers, and reverse proxies to
+Docker Nginx. It never executes PHP, serves Laravel source, or accesses MySQL or
+DigitalOcean credentials. Docker Nginx continues to own immutable public assets,
+Laravel front-controller routing, arbitrary-PHP denial, `/up`, and FastCGI to the
+unpublished application service.
+
+Laravel 13 trusts the special `REMOTE_ADDR` immediate-peer token rather than a
+Docker subnet or every proxy address. The accepted header mask contains only
+`X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Port`, and
+`X-Forwarded-Proto`. This is safe only while PHP-FPM has no host publication,
+Docker Nginx is the normal FastCGI caller, Docker Nginx remains behind the
+loopback host binding, and host Nginx overwrites rather than appends public
+forwarding values. HTTPS URL generation comes from this trusted request context
+and `APP_URL=https://<production-domain>`; the application does not force the
+HTTPS scheme globally.
+
+Docker Nginx does not explicitly remap the forwarding headers into FastCGI.
+Nginx enables `fastcgi_pass_request_headers` by default and converts incoming
+HTTP request headers into `HTTP_*` FastCGI parameters, so explicit duplicate
+mappings provide no correctness or security benefit. Host Nginx remains the
+sanitization boundary.
+
+Compose interpolation and Laravel runtime environments are separate contracts.
+The Compose file contains the deployed release identity, Laravel env-file path,
+and MySQL initialization credentials. The Laravel file contains application,
+session, logging, cache, queue, upload, and private Spaces settings; Compose
+injects the non-root application DB connection. The MySQL root password never
+enters Laravel. Real files belong under `/etc/zb-examine`, outside the checkout
+and images, with restrictive deployment-user/group permissions. `APP_KEY` is
+generated once with `php artisan key:generate --show`, stored directly in the
+protected runtime environment, and remains stable across app, scheduler,
+redeployments, and rollbacks. No environment-specific config cache is generated
+automatically for the initial production launch.
+
+Production browser uploads use an exact-origin Spaces CORS policy for
+`https://<production-domain>`. The only allowed method is `PUT`, the only allowed
+request header is `Content-Type`, and no response header is exposed because the
+browser does not consume ETag. Server-side HEAD, conditional GET, PUT, listing,
+and deletion are not browser CORS operations. The bucket remains private, CDN
+remains off, and CORS never replaces presigned or authenticated authorization.
+The tracked XML policy matches DigitalOcean's documented `s3cmd setcors`
+workflow.
+
+P3 ends when these repository contracts and local proxy semantics validate. P4
+owns the real production domain, VPS setup and deployment, DNS, certificates,
+live CORS application, migrations, backups, UFW/SSH hardening, initial users,
+and live verification. Completing P3 does not claim production deployment or
+close deferred mobile/direct-upload resilience work.
+
+**Core desktop E2E QA PASSED. Extended/mobile resilience QA DEFERRED.**
