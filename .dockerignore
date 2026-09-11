@@ -1,4 +1,9 @@
 .git
+.claude/
+.mcp.json
+boost.json
+AGENTS.md
+CLAUDE.md
 .env
 .env.*
 node_modules
