@@ -1,0 +1,90 @@
+name: zb-examine-prod
+
+x-laravel-environment: &laravel-environment
+  DB_CONNECTION: mysql
+  DB_HOST: db
+  DB_PORT: 3306
+  DB_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE}
+  DB_USERNAME: ${MYSQL_USER:?Set MYSQL_USER}
+  DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.production
+      target: runtime
+      args:
+        RELEASE_ID: ${RELEASE_ID:?Set RELEASE_ID to the full Git SHA}
+    image: zb-examine-app:${RELEASE_ID:?Set RELEASE_ID to the full Git SHA}
+    restart: unless-stopped
+    env_file:
+      - ${LARAVEL_ENV_FILE:?Set LARAVEL_ENV_FILE}
+    environment: *laravel-environment
+    expose:
+      - "9000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - php
+        - -r
+        - "$$socket = @fsockopen('127.0.0.1', 9000); exit($$socket === false ? 1 : 0);"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.production
+      target: nginx-runtime
+      args:
+        RELEASE_ID: ${RELEASE_ID:?Set RELEASE_ID to the full Git SHA}
+    image: zb-examine-nginx:${RELEASE_ID:?Set RELEASE_ID to the full Git SHA}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1/up"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  scheduler:
+    image: zb-examine-app:${RELEASE_ID:?Set RELEASE_ID to the full Git SHA}
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+    env_file:
+      - ${LARAVEL_ENV_FILE:?Set LARAVEL_ENV_FILE}
+    environment: *laravel-environment
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
