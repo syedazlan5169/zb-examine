@@ -1,0 +1,62 @@
+<?php
+
+return [
+    'navigation' => 'Laporan',
+    'title' => 'Laporan',
+    'monthly_report' => 'Laporan Bulanan',
+    'filters' => [
+        'month' => 'Bulan',
+        'year' => 'Tahun',
+        'view' => 'Lihat',
+        'previous' => 'Bulan Sebelumnya',
+        'next' => 'Bulan Seterusnya',
+    ],
+    'summary' => [
+        'title' => 'Ringkasan',
+        'total_submissions' => 'Jumlah Penyerahan',
+        'unique_agents' => 'Ejen Yang Membuat Penyerahan',
+        'evidence_photos' => 'Foto Bukti',
+        'average_per_active_day' => 'Purata Penyerahan / Hari Aktif',
+    ],
+    'daily' => [
+        'title' => 'Aktiviti Harian',
+        'date' => 'Tarikh',
+        'submissions' => 'Penyerahan',
+    ],
+    'agents' => [
+        'title' => 'Ringkasan Ejen',
+        'name' => 'Nama Ejen',
+        'code' => 'Kod Ejen',
+        'company' => 'Syarikat',
+        'station' => 'Stesen',
+    ],
+    'statement' => [
+        'title' => 'Penyata Bulanan',
+        'number' => 'No.',
+        'submission_number' => 'No. Penyerahan',
+        'submission_date' => 'Tarikh Penyerahan',
+        'submission_time' => 'Masa Penyerahan',
+        'agent_name' => 'Nama Ejen',
+        'agent_code' => 'Kod Ejen',
+        'company' => 'Syarikat',
+        'station' => 'Stesen',
+        'location' => 'Lokasi',
+        'customs_forms' => 'No. Borang Kastam',
+        'form_type' => 'Jenis Borang',
+        'container_status' => 'Status Kontena',
+        'reason' => 'Sebab',
+        'attending_officer_type' => 'Jenis Pegawai Bertugas',
+        'evidence_photos' => 'Foto Bukti',
+        'submissions' => 'Penyerahan',
+        'result_count' => ':count rekod',
+    ],
+    'actions' => [
+        'export' => 'Eksport Excel',
+    ],
+    'empty' => 'Tiada penyerahan direkodkan untuk bulan ini.',
+    'workbook' => [
+        'monthly_report' => 'Laporan Bulanan',
+        'selected_month' => 'Bulan Dipilih',
+        'generated_at' => 'Dijana Pada',
+    ],
+];

@@ -34,6 +34,34 @@ permissions packages, audit tables/packages, deletion, `last_login_at`, and
 `password_changed_at` remain deferred. Production migration, preflight, and live
 verification remain deployment work and have not been performed.
 
+## Reports and Monthly Statement — Implemented Locally, Not Deployed
+
+The staff-only Reports and Monthly Statement module is implemented and tested
+locally. Officer and Admin users can view monthly dashboard statistics, daily
+activity, Agent activity, a paginated monthly statement, and an XLSX export.
+Agents remain denied by the existing `ExaminationPolicy::viewAny` boundary.
+
+One successfully persisted `Examination` row is one official report record.
+Reports use `examinations.submitted_at`, with half-open boundaries calculated in
+`Asia/Kuala_Lumpur` and converted to UTC before querying. The four approved
+headline metrics are Total Submissions, Unique Submitting Agents, Evidence
+Photos from final `examination_photos`, and Average Submissions per Active Day.
+
+Historical Agent identity is never read from the current User profile. Registered
+submissions group by `user_id` and display the most recent snapshot in the
+selected period; guest submissions group by normalized snapshot values. The
+statement includes ordered customs form numbers and final evidence counts.
+
+XLSX export uses OpenSpout 5.11.3, with `Summary` and `Monthly Statement`
+worksheets. Export rows are generated in bounded 250-row keyset batches using
+the selected period's initial `(submitted_at, id)` high-watermark, and all
+textual database values use literal string cells to prevent spreadsheet formula
+injection. Failed workbook generation removes its temporary file. No database
+migration or Dockerfile change was required. The application minimum PHP
+version is 8.4. These
+results are local verification only and do not represent a production
+deployment.
+
 ## P3 Production Edge Contract
 
 Status: **Repository-side production edge ready; live activation deferred to P4.**

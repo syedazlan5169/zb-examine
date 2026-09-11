@@ -117,6 +117,24 @@ class ExaminationSubmissionFormTest extends TestCase
         $this->assertSame(0, Examination::count());
     }
 
+    public function test_blank_guest_identity_fields_are_rejected(): void
+    {
+        $response = $this->post('/examinations', $this->validPayload([
+            'agent_name' => '',
+            'agent_code' => '',
+            'agent_company_name' => '',
+            'agent_station_code' => '',
+        ]));
+
+        $response->assertSessionHasErrors([
+            'agent_name',
+            'agent_code',
+            'agent_company_name',
+            'agent_station_code',
+        ]);
+        $this->assertSame(0, Examination::count());
+    }
+
     public function test_required_field_validation_renders_the_malay_translated_message(): void
     {
         $response = $this->followingRedirects()->post('/examinations', $this->validPayload(['agent_name' => '']));

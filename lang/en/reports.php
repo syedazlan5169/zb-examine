@@ -1,0 +1,62 @@
+<?php
+
+return [
+    'navigation' => 'Reports',
+    'title' => 'Reports',
+    'monthly_report' => 'Monthly Report',
+    'filters' => [
+        'month' => 'Month',
+        'year' => 'Year',
+        'view' => 'View',
+        'previous' => 'Previous Month',
+        'next' => 'Next Month',
+    ],
+    'summary' => [
+        'title' => 'Summary',
+        'total_submissions' => 'Total Submissions',
+        'unique_agents' => 'Unique Submitting Agents',
+        'evidence_photos' => 'Evidence Photos',
+        'average_per_active_day' => 'Avg. Submissions / Active Day',
+    ],
+    'daily' => [
+        'title' => 'Daily Activity',
+        'date' => 'Date',
+        'submissions' => 'Submissions',
+    ],
+    'agents' => [
+        'title' => 'Agent Summary',
+        'name' => 'Agent Name',
+        'code' => 'Agent Code',
+        'company' => 'Company',
+        'station' => 'Station',
+    ],
+    'statement' => [
+        'title' => 'Monthly Statement',
+        'number' => 'No.',
+        'submission_number' => 'Submission No.',
+        'submission_date' => 'Submission Date',
+        'submission_time' => 'Submission Time',
+        'agent_name' => 'Agent Name',
+        'agent_code' => 'Agent Code',
+        'company' => 'Company',
+        'station' => 'Station',
+        'location' => 'Location',
+        'customs_forms' => 'Customs Form No(s)',
+        'form_type' => 'Form Type',
+        'container_status' => 'Container Status',
+        'reason' => 'Reason',
+        'attending_officer_type' => 'Attending Officer Type',
+        'evidence_photos' => 'Evidence Photos',
+        'submissions' => 'Submissions',
+        'result_count' => ':count records',
+    ],
+    'actions' => [
+        'export' => 'Export Excel',
+    ],
+    'empty' => 'No submissions were recorded for this month.',
+    'workbook' => [
+        'monthly_report' => 'Monthly Report',
+        'selected_month' => 'Selected Month',
+        'generated_at' => 'Generated At',
+    ],
+];

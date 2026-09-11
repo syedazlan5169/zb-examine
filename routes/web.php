@@ -9,6 +9,7 @@ use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\PhotoUploadSessionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StaffExaminationController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +41,14 @@ Route::get('/examinations/{examination}/photos/{photo}/preview', [ExaminationPho
     ->middleware(['auth', 'active'])
     ->scopeBindings()
     ->name('examinations.photos.preview');
+
+Route::middleware(['auth', 'active'])
+    ->prefix('reports')
+    ->name('reports.')
+    ->group(function (): void {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('/export', [ReportController::class, 'export'])->name('export');
+    });
 
 Route::get('/login', [AuthController::class, 'create'])
     ->middleware('guest')

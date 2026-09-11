@@ -971,6 +971,56 @@ concurrency scenarios cover competing admin demotions and a mixed
 deactivation/demotion race. This checkpoint is local-only and does not claim
 production deployment.
 
+## D035 - Staff Reports and Monthly Statement
+
+The Reports module is a small staff-only surface. `Officer` and `Admin` users
+may view `/reports` and download `/reports/export`; `Agent` users and guests may
+not. Both routes use `auth` and `active` middleware and explicitly authorize
+`ExaminationPolicy::viewAny`. Navigation visibility is only a convenience and
+is not the authorization boundary.
+
+One successfully persisted `Examination` row is one official report record.
+`examinations.submitted_at` is authoritative; temporary photo uploads, upload
+sessions, submission sequences, and `created_at` are not report sources. There
+is no status filter because the domain has no examination status column and a
+failed submission cannot persist an Examination row.
+
+Report periods use the configured `Asia/Kuala_Lumpur` business timezone. A
+selected month is represented by the half-open interval `submitted_at >=
+startUtc AND submitted_at < nextMonthStartUtc`, where both local month
+boundaries are converted to UTC before querying. The dashboard uses exactly four
+headline metrics: Total Submissions, Unique Submitting Agents, final Evidence
+Photos, and Average Submissions per Active Day. Daily activity includes every
+calendar day, including zero-activity days.
+
+Historical Agent reporting never reads current User profile fields. Registered
+submissions group by `user_id` and use the most recent in-period examination
+snapshot for display. Guest submissions group by normalized snapshot values
+`agent_code`, `agent_company_name`, `agent_station_code`, and `agent_name`.
+Inactive accounts remain represented by their historical submissions.
+
+The paginated statement is ordered by `submitted_at ASC, id ASC` and includes
+submission number/date/time, snapshot Agent name/code/company/station, business
+labels for location/form/container/reason/attending officer type, ordered customs
+form numbers, and final evidence-photo count. The export contains all selected
+period rows in `Summary` and `Monthly Statement` worksheets and uses OpenSpout
+5.11.3. Statement text is always written with OpenSpout literal `StringCell`
+instances; v1 creates no formula cells, protecting user-controlled values from
+spreadsheet formula injection. The filename uses stable English components while
+human-readable workbook labels follow the current UI locale.
+
+Export iteration uses 250-row keyset batches ordered by `submitted_at ASC, id
+ASC`. The first export query captures the maximum eligible `(submitted_at, id)`
+pair, and every batch retains both the month bounds and that high-watermark, so
+new submissions cannot extend the export and offset shifts cannot skip or repeat
+rows. Temporary workbook files are removed on generation failure and after a
+successful response.
+
+No database migration or Dockerfile change was required. This decision records
+local implementation and verification only; it does not claim production
+deployment. The application Composer PHP requirement is `^8.4`, matching the
+production PHP 8.4 image and OpenSpout's supported runtime range.
+
 ## D029 - Staff Examination Retrieval and Split Review Workspace
 
 Internal examination retrieval is available only to authenticated `officer` and
