@@ -1327,3 +1327,19 @@ language while preserving the submission-number and draft-clearing markers.
 Later Phase 8 slices remain responsible for staff workspace, Agent history,
 Reports, My Account, User Management, mobile Examination cards, and broader
 page-specific redesign.
+
+## Phase 8B — Examination Workspace and Mobile Presentation
+
+The staff Examination workspace now presents denser, more scannable list rows
+using the existing Submission Number, business-timezone timestamp, Agent name,
+and company snapshot fields. The selected details header emphasizes the
+Submission Number and submitted timestamp without changing the split list/detail
+workflow.
+
+Below `lg`, the existing ten-item presentation pagination, server-page handoff,
+selection link contract, and `#examination-details` navigation remain intact.
+The workspace keeps its 25-item server pagination, Today/search semantics,
+canonical Submission Number behavior, SoftDeletes scope, protected evidence
+routes, and Admin-only Delete modal. This is a workspace presentation refinement;
+Agent history, Reports, My Account, User Management, and navigation architecture
+remain outside this slice.

@@ -322,6 +322,22 @@ without adding unnecessary ARIA. No frontend framework or UI dependency is
 introduced. Phase 6 modal and Phase 2 mobile drawer behavior are preserved;
 page-by-page refinement remains Phase 8.
 
+## D037 — Phase 8B Examination Workspace Presentation
+
+The staff Examination workspace remains a two-region operational workflow with
+the existing scrollable server-paginated list and selected details panel. List
+rows now show existing Submission Number, business-timezone timestamp, Agent
+name, and company snapshot data for faster scanning. The selected details header
+emphasizes the Submission Number and submitted timestamp.
+
+The existing `lg` responsive boundary remains in use. Mobile presentation keeps
+the compact ten-item client pagination over the 25-item server page, preserves
+the server-page handoff, and keeps selection links targeting the stable
+`#examination-details` anchor. Today filtering, partial/full search behavior,
+SoftDeletes exclusion, evidence access, and Admin Delete authorization are
+unchanged. No mobile card business logic, new filters, AJAX, infinite scroll,
+or new dependencies were introduced.
+
 ## D036 — Phase 8A Entry, Authentication, and Submission UI Polish
 
 Phase 8A is visual refinement only for the Guest landing page, Login, Register,

@@ -1,7 +1,8 @@
 <div class="flex min-h-[calc(100vh-9rem)] flex-col gap-4 lg:h-[calc(100vh-9rem)] lg:grid lg:grid-cols-[minmax(280px,25%)_minmax(0,1fr)] lg:gap-5">
     <aside class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div class="flex-none border-b border-gray-200 p-4">
-            <h1 class="text-xl font-bold">{{ __('examination.staff.list_title') }}</h1>
+        <div class="flex-none border-b border-gray-200 bg-gray-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ __('app.name') }}</p>
+            <h1 class="mt-1 text-xl font-bold text-gray-950">{{ __('examination.staff.list_title') }}</h1>
             @if (session('status'))
                 <x-ui.alert type="success" class="mt-3">{{ session('status') }}</x-ui.alert>
             @endif
@@ -67,12 +68,15 @@
                             data-mobile-detail-link
                             data-mobile-examination-row
                             @if ($isSelected) aria-current="page" data-selected="true" @endif
-                            class="block px-4 py-4 transition hover:bg-gray-50 {{ $isSelected ? 'border-l-4 border-gray-900 bg-gray-100 pl-3' : '' }}"
+                            class="block px-4 py-3 transition hover:bg-gray-50 {{ $isSelected ? 'border-l-4 border-gray-900 bg-gray-100 pl-3' : '' }}"
                         >
-                            <time datetime="{{ $sidebarExamination->submitted_at->toIso8601String() }}" class="block text-xs text-gray-600">
+                            <div class="flex items-start justify-between gap-3">
+                                <span class="font-semibold text-gray-950">{{ $sidebarExamination->submission_no }}</span>
+                                <time datetime="{{ $sidebarExamination->submitted_at->toIso8601String() }}" class="shrink-0 text-xs text-gray-600">
                                 {{ $sidebarExamination->submitted_at->copy()->setTimezone(config('zb-examine.business_timezone'))->format('d/m/Y H:i') }}
-                            </time>
-                            <span class="mt-1 block font-semibold">{{ $sidebarExamination->submission_no }}</span>
+                                </time>
+                            </div>
+                            <p class="mt-1 truncate text-sm text-gray-700">{{ $sidebarExamination->agent_name }} · {{ $sidebarExamination->agent_company_name }}</p>
                         </a>
                     @endforeach
                 </div>
@@ -108,7 +112,11 @@
             <div class="flex min-h-0 flex-1 flex-col p-4 lg:p-5">
                 <div class="flex min-h-0 flex-none flex-col lg:max-h-[42%] lg:overflow-y-auto">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="text-2xl font-bold">{{ __('examination.staff.detail_title') }}</h2>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ __('examination.staff.detail_title') }}</p>
+                        <h2 class="mt-1 break-all text-2xl font-bold text-gray-950">{{ $selectedExamination->submission_no }}</h2>
+                        <p class="mt-1 text-sm text-gray-600">{{ $selectedExamination->submitted_at->copy()->setTimezone(config('zb-examine.business_timezone'))->format('d/m/Y H:i') }}</p>
+                    </div>
                     @can('delete', $selectedExamination)
                         <button type="button" data-delete-trigger class="rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-red-900">
                             {{ __('examination.staff.delete') }}
@@ -121,7 +129,7 @@
                     <section class="rounded-lg border border-gray-200 p-3">
                         <h3 class="border-b border-gray-200 pb-1 text-base font-semibold">{{ __('examination.sections.submission') }}</h3>
                         <dl class="mt-2 space-y-1 text-sm">
-                            <div><dt class="text-gray-600">{{ __('examination.fields.submission_number') }}</dt><dd class="font-semibold">{{ $selectedExamination->submission_no }}</dd></div>
+                            <div><dt class="text-gray-600">{{ __('examination.fields.submission_number') }}</dt><dd class="break-all font-semibold">{{ $selectedExamination->submission_no }}</dd></div>
                             <div><dt class="text-gray-600">{{ __('examination.staff.submitted_at') }}</dt><dd>{{ $selectedExamination->submitted_at->copy()->setTimezone(config('zb-examine.business_timezone'))->format('d/m/Y H:i') }}</dd></div>
                         </dl>
                     </section>

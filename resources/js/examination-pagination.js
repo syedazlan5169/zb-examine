@@ -29,6 +29,7 @@ function setupMobileExaminationPagination() {
         });
 
         pagination.hidden = false;
+        rows.forEach((row) => row.classList.toggle('hidden', row.hidden));
         pageLabel.textContent = `${currentPage} / ${totalPages}`;
         previous.disabled = currentPage === 1 && !list.dataset.serverPreviousUrl;
         next.disabled = currentPage === totalPages && !list.dataset.serverNextUrl;

@@ -194,11 +194,11 @@ class StaffExaminationRetrievalTest extends TestCase
 
         $response->assertOk()
             ->assertSee('ZB-SIDEBAR')
+            ->assertSee('Hidden Agent')
+            ->assertSee('Hidden Company')
             ->assertSee('10/09/2026 08:30')
             ->assertSee(__('examination.staff.select_examination'))
             ->assertSee('action="'.route('examinations.index').'"', false)
-            ->assertDontSee('Hidden Agent')
-            ->assertDontSee('Hidden Company')
             ->assertDontSee('HIDDEN-CODE')
             ->assertDontSee('HIDDEN-STATION')
             ->assertDontSee(trans_choice('examination.staff.photo_count', 1, ['count' => 1]));
@@ -326,6 +326,8 @@ class StaffExaminationRetrievalTest extends TestCase
 
         $response->assertOk()
             ->assertSee('ZB-DETAIL')
+            ->assertSee('id="examination-details"', false)
+            ->assertSee(__('examination.staff.detail_title'))
             ->assertSee('10/09/2026 08:30')
             ->assertSee(FormType::Other->label())
             ->assertSee('Special form')
@@ -338,7 +340,6 @@ class StaffExaminationRetrievalTest extends TestCase
                 route('examinations.photos.preview', [$examination, $secondPhoto]),
             ], false)
             ->assertSee($other->submission_no)
-            ->assertDontSee('Other Detail Agent')
             ->assertDontSee('private/first.jpg')
             ->assertDontSee('storage_disk')
             ->assertDontSee('digitaloceanspaces.com');
