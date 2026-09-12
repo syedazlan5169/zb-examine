@@ -27,11 +27,11 @@
                         <dl class="mt-3 grid gap-2 text-sm">
                             <div class="flex items-start justify-between gap-3">
                                 <dt class="text-gray-600">{{ __('examination.fields.location') }}</dt>
-                                <dd class="text-right text-gray-900">{{ $examination->location->label() }}</dd>
+                                    <dd class="max-w-[65%] break-words text-right text-gray-900">{{ $examination->location->label() }}</dd>
                             </div>
                             <div class="flex items-start justify-between gap-3">
                                 <dt class="text-gray-600">{{ __('examination.fields.container_status') }}</dt>
-                                <dd class="text-right font-medium text-gray-900">{{ $examination->container_status->label() }}</dd>
+                                <dd class="max-w-[65%] break-words text-right font-medium text-gray-900">{{ $examination->container_status->label() }}</dd>
                             </div>
                             <div class="flex items-start justify-between gap-3">
                                 <dt class="text-gray-600">{{ __('examination.fields.agent_company_name') }}</dt>

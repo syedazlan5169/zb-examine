@@ -10,8 +10,8 @@ return [
         'detail_title' => 'Butiran Pemeriksaan',
         'select_examination' => 'Pilih pemeriksaan untuk melihat butiran.',
         'search' => 'Cari pemeriksaan',
-        'search_placeholder' => 'Nombor penyerahan, borang kastam, ejen atau syarikat',
-        'today_only' => 'Hari ini sahaja',
+        'search_placeholder' => 'Nombor rujukan, borang kastam, ejen atau syarikat',
+        'today_only' => 'Hari ini',
         'submitted_at' => 'Tarikh dan masa penyerahan',
         'agent' => 'Ejen',
         'company' => 'Syarikat',
@@ -21,13 +21,13 @@ return [
         'photo_count' => '{1} :count foto|[2,*] :count foto',
         'view' => 'Lihat',
         'customs_forms' => 'Nombor Borang Kastam',
-        'evidence' => 'Bukti Foto',
+        'evidence' => 'Foto',
         'no_examinations' => 'Tiada pemeriksaan direkodkan.',
         'no_examinations_today' => 'Tiada pemeriksaan direkodkan hari ini.',
         'no_search_results' => 'Tiada pemeriksaan sepadan dengan carian anda.',
-        'no_photos' => 'Tiada foto bukti.',
+        'no_photos' => 'Tiada foto,',
         'deleted' => 'Pemeriksaan berjaya dipadamkan.',
-        'delete' => 'Padam Pemeriksaan',
+        'delete' => 'Padam',
         'delete_title' => 'Padam Pemeriksaan?',
         'delete_confirmation' => 'Pemeriksaan ini akan dikeluarkan daripada paparan operasi biasa. Bukti dikekalkan.',
         'cancel' => 'Batal',
@@ -39,21 +39,21 @@ return [
     ],
 
     'agent' => [
-        'navigation' => 'Penyerahan Saya',
-        'list_title' => 'Penyerahan Saya',
-        'detail_title' => 'Butiran Penyerahan',
-        'empty_state' => 'Tiada penyerahan ditemui.',
-        'back_to_list' => 'Kembali ke penyerahan',
+        'navigation' => 'Rekod Saya',
+        'list_title' => 'Rekod Saya',
+        'detail_title' => 'Butiran Pemeriksaan',
+        'empty_state' => 'Tiada rekod ditemui.',
+        'back_to_list' => 'Kembali ke rekod',
     ],
 
     'sections' => [
-        'submission' => 'Penyerahan',
+        'submission' => 'Pemeriksaan',
         'agent_information' => 'Maklumat Ejen',
         'examination_information' => 'Maklumat Pemeriksaan',
     ],
 
     'fields' => [
-        'submission_number' => 'Nombor Penyerahan',
+        'submission_number' => 'Nombor Rujukan',
         'agent_name' => 'Nama Ejen',
         'agent_phone' => 'Nombor Telefon Ejen',
         'agent_code' => 'Kod Ejen',
@@ -113,7 +113,7 @@ return [
     'success' => [
         'heading' => 'Pemeriksaan Berjaya Dihantar',
         'message' => 'Pemeriksaan anda telah berjaya didaftarkan. Sila simpan nombor penyerahan di bawah untuk rujukan.',
-        'submission_number_label' => 'Nombor Penyerahan',
+        'submission_number_label' => 'Nombor Rujukan',
     ],
 
 ];

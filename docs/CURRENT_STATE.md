@@ -1343,6 +1343,25 @@ active/inactive badges; create, edit, password reset, and safety rules are
 unchanged. This remains a presentation refinement; no Phase 9 redesign or new
 business workflow was introduced.
 
+## Phase 8D — Final UI Consistency and Accessibility Pass
+
+The page-level UI refinement program from Phase 8A through Phase 8D is now
+functionally complete, pending final human QA. Shared UI primitives remain the
+visual foundation for controls, surfaces, alerts, empty states, badges, and
+tables.
+
+The final consistency pass was intentionally minimal. It aligned legacy Admin
+role/status controls with shared form styling, aligned the password-save action
+with the shared button primitive, and hardened long-content wrapping in User
+Management and Agent History. The audit also covered responsive overflow,
+focus/accessibility consistency, touch targets, and Malay/English layout
+behavior across the application surfaces.
+
+No new features were added. No business logic, authentication, submission,
+photo, search, pagination, report, account, User Management, authorization,
+routing, or JavaScript behavior changed during Phase 8D. The remaining work is
+final application-wide human QA only.
+
 ## Phase 8B — Examination Workspace and Mobile Presentation
 
 The staff Examination workspace now presents denser, more scannable list rows

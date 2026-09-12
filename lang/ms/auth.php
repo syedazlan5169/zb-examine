@@ -7,7 +7,7 @@ return [
     'remember' => 'Ingat saya',
     'sign_in' => 'Log masuk',
     'logout' => 'Log keluar',
-    'failed' => 'Maklumat kelayakan yang diberikan tidak sah.',
+    'failed' => 'Maklumat yang diberikan tidak sah.',
     'register' => 'Daftar',
     'no_account' => 'Belum mempunyai akaun?',
     'have_account' => 'Sudah mempunyai akaun?',

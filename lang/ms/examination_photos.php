@@ -2,11 +2,11 @@
 
 return [
     'section_title' => 'Gambar',
-    'take_photo' => 'Ambil Gambar',
-    'choose_existing' => 'Pilih Gambar Sedia Ada',
+    'take_photo' => 'Kamera',
+    'choose_existing' => 'Pilih Gambar',
     'count_label' => 'gambar',
     'empty' => 'Tiada gambar lagi.',
-    'no_preview' => 'Tiada Pratonton',
+    'no_preview' => 'Tiada Preview',
     'remove' => 'Buang',
     'retry' => 'Cuba Semula',
     'retry_remove' => 'Cuba Padam Lagi',

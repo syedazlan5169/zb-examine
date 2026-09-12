@@ -45,8 +45,8 @@
             <a href="{{ route('admin.users.edit', $user) }}" class="block rounded-md border border-gray-200 bg-white p-4 hover:border-gray-400 focus:outline focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h2 class="font-semibold">{{ $user->name }}</h2>
-                        <p class="text-sm text-gray-600">{{ $user->username }}{{ $user->email ? ' · '.$user->email : '' }}</p>
+                        <h2 class="break-words font-semibold">{{ $user->name }}</h2>
+                        <p class="break-words text-sm text-gray-600">{{ $user->username }}{{ $user->email ? ' · '.$user->email : '' }}</p>
                     </div>
                     <div class="flex flex-wrap gap-2 text-sm">
                         <x-ui.badge>{{ __('users.roles.'.$user->role->value) }}</x-ui.badge>

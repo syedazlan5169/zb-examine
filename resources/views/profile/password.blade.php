@@ -17,7 +17,7 @@
             <x-text-input name="current_password" :label="__('profile.current_password')" type="password" autocomplete="current-password" />
             <x-text-input name="password" :label="__('profile.new_password')" type="password" autocomplete="new-password" />
             <x-text-input name="password_confirmation" :label="__('profile.confirm_password')" type="password" autocomplete="new-password" />
-            <button type="submit" class="w-full rounded-lg bg-gray-900 px-4 py-3 text-base font-semibold text-white hover:bg-gray-700">{{ __('profile.save') }}</button>
+            <x-ui.button type="submit" class="w-full">{{ __('profile.save') }}</x-ui.button>
         </form>
     </x-ui.card>
 @endsection
