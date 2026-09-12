@@ -51,17 +51,16 @@
                     ['label' => __('reports.summary.evidence_photos'), 'value' => $summary['evidence_photos']],
                     ['label' => __('reports.summary.average_per_active_day'), 'value' => number_format($summary['average_per_active_day'], 1)],
                 ] as $card)
-                    <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <x-ui.card>
                         <dt class="text-sm text-gray-600">{{ $card['label'] }}</dt>
                         <dd class="mt-2 text-2xl font-bold">{{ $card['value'] }}</dd>
-                    </div>
+                    </x-ui.card>
                 @endforeach
             </div>
         </section>
 
         <div class="grid gap-6 xl:grid-cols-2">
-            <section class="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="daily-heading">
-                <h2 id="daily-heading" class="text-lg font-bold">{{ __('reports.daily.title') }}</h2>
+            <x-ui.card title="{{ __('reports.daily.title') }}" aria-labelledby="daily-heading">
                 <div class="mt-3 overflow-x-auto">
                     <table class="w-full min-w-64 text-left text-sm">
                         <thead class="border-b border-gray-200 text-xs uppercase text-gray-600">
@@ -74,10 +73,9 @@
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </x-ui.card>
 
-            <section class="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="agents-heading">
-                <h2 id="agents-heading" class="text-lg font-bold">{{ __('reports.agents.title') }}</h2>
+            <x-ui.card title="{{ __('reports.agents.title') }}" aria-labelledby="agents-heading">
                 <div class="mt-3 overflow-x-auto">
                     <table class="w-full min-w-[34rem] text-left text-sm">
                         <thead class="border-b border-gray-200 text-xs uppercase text-gray-600">
@@ -92,7 +90,7 @@
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </x-ui.card>
         </div>
 
         <section class="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="statement-heading">

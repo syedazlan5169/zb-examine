@@ -1289,3 +1289,22 @@ The Admin detail view has a translated confirmation modal showing the Submission
 Number, retention wording, Cancel/Delete actions, Escape/backdrop close, focus
 return, and duplicate-submit protection. Successful deletion redirects to the
 staff list with translated feedback.
+
+## Phase 7 — Shared UI Foundation
+
+The shared UI foundation uses Blade components under
+`resources/views/components/ui/` with Tailwind v4 utilities and vanilla
+JavaScript. The initial primitives are intentionally small: Button, Alert,
+Card, Empty State, Select, Checkbox, and Table Wrapper. The existing text-input
+component now shares the common minimum control height, radius, focus, and
+error treatment.
+
+The visual rules are restrained operational UI: neutral page/surface colors,
+moderate borders and radius, minimal shadows, readable hierarchy, 44px-friendly
+touch targets, and visible focus rings. Components present authorized actions
+but never decide authorization. Native form/link semantics remain primary, and
+all user-facing copy remains translated.
+
+Phase 6's delete modal, Phase 2's navigation drawer, Phase 3's draft/photo
+resilience, reports, exports, and business logic remain functionally unchanged.
+This phase does not constitute a page-by-page redesign.

@@ -3,7 +3,7 @@
         <div class="flex-none border-b border-gray-200 p-4">
             <h1 class="text-xl font-bold">{{ __('examination.staff.list_title') }}</h1>
             @if (session('status'))
-                <p role="status" class="mt-3 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-medium text-green-800">{{ session('status') }}</p>
+                <x-ui.alert type="success" class="mt-3">{{ session('status') }}</x-ui.alert>
             @endif
             <form method="GET" action="{{ route('examinations.index') }}" class="mt-4 flex flex-wrap items-end gap-2">
                 <div class="min-w-0 flex-1">
@@ -18,7 +18,7 @@
                         class="w-full rounded-lg border-2 border-gray-300 px-3 py-2 text-sm focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900"
                     >
                 </div>
-                <label for="today" class="flex min-h-10 items-center gap-2 px-1 text-sm text-gray-700">
+                <label for="today" class="flex min-h-11 items-center gap-2 px-1 text-sm text-gray-700">
                     <input type="hidden" name="today" value="0">
                     <input
                         id="today"
@@ -77,9 +77,7 @@
                     @endforeach
                 </div>
             @else
-                <p class="p-5 text-sm text-gray-600">
-                    {{ $search !== '' ? __('examination.staff.no_search_results') : ($today ? __('examination.staff.no_examinations_today') : __('examination.staff.no_examinations')) }}
-                </p>
+                <x-ui.empty-state :title="$search !== '' ? __('examination.staff.no_search_results') : ($today ? __('examination.staff.no_examinations_today') : __('examination.staff.no_examinations') )" />
             @endif
         </div>
 

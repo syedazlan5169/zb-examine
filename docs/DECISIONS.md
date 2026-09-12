@@ -306,6 +306,22 @@ The Admin detail UI uses an application-native translated confirmation modal and
 redirects to the staff list after success. Trash, Restore, force delete, bulk
 delete, and automatic evidence cleanup remain intentionally unimplemented.
 
+## D035 — Shared UI Foundation
+
+Reusable presentation primitives live under `resources/views/components/ui/`
+and remain Blade-only: `button`, `alert`, `card`, `empty-state`, `select`,
+`checkbox`, and `table-wrapper`. The existing text-input component is the
+shared field foundation. APIs remain small and presentation-only; authorization
+stays in policies/Gates and surrounding Blade conditions.
+
+The visual foundation uses Tailwind v4 utilities with a restrained operational
+palette, neutral surfaces/borders, moderate radius, minimal shadow, consistent
+control height, readable text hierarchy, and visible focus rings. Native HTML
+semantics are preferred; components expose accessible labels/error relationships
+without adding unnecessary ARIA. No frontend framework or UI dependency is
+introduced. Phase 6 modal and Phase 2 mobile drawer behavior are preserved;
+page-by-page refinement remains Phase 8.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.
