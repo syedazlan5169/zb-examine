@@ -1,4 +1,5 @@
 import './mobile-navigation';
+import './examination-draft';
 import './examination-selection';
 import './examination-pagination';
 import './examination-photos';

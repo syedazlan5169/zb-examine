@@ -98,6 +98,13 @@ return [
         'copied' => 'Disalin!',
     ],
 
+    'draft' => [
+        'saved' => 'Draf disimpan dalam tab pelayar ini.',
+        'restored' => 'Draf dipulihkan.',
+        'clear' => 'Kosongkan draf',
+        'cleared' => 'Draf dikosongkan.',
+    ],
+
     'success' => [
         'heading' => 'Pemeriksaan Berjaya Dihantar',
         'message' => 'Pemeriksaan anda telah berjaya didaftarkan. Sila simpan nombor penyerahan di bawah untuk rujukan.',

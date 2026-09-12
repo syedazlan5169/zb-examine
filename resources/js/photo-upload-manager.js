@@ -1,4 +1,4 @@
-import { allocatePhoto, completePhoto, createSession, deletePhoto, readSession, uploadPhoto } from './photo-upload-api.js';
+import { allocatePhoto, completePhoto, createSession, deletePhoto, fetchPhotoPreview, readSession, uploadPhoto } from './photo-upload-api.js';
 import { optimizeImage } from './image-optimizer.js';
 
 export const STORAGE_KEY = 'zb-examine.photo-upload-session.v1';
@@ -738,12 +738,26 @@ export class PhotoUploadManager {
                 };
 
                 this.photos.push(recovered);
+
+                if (recovered.state === 'uploaded') {
+                    await this.restorePreview(recovered);
+                }
             }
 
             this.render();
         } catch (error) {
             this.clearSessionStorage();
             this.setMessage(this.config.messages?.sessionReset || 'Your photo session could not be resumed.');
+        }
+    }
+
+    async restorePreview(photo) {
+        try {
+            const blob = await fetchPhotoPreview(this.session.public_id, this.session.token, photo.backendPublicId);
+            this.setPreview(photo, URL.createObjectURL(blob));
+            this.render();
+        } catch {
+            // The upload remains submit-ready; the preview can be retried by reloading the page.
         }
     }
 

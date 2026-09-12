@@ -212,6 +212,35 @@ their relevant query context. Mobile selection targets the stable
 `#examination-details` fragment through responsive JavaScript only; desktop
 selection does not add or force a fragment jump.
 
+## D031 — Phase 3 Submission Resilience
+
+In-progress Examination form values are persisted only in a versioned
+`sessionStorage` record. The schema contains `version`, `savedAt`, and a
+`fields` object matching the actual non-file form controls. The lifetime is
+bounded to 24 hours; malformed, unsupported, or expired records are discarded.
+The storage key is actor-scoped as `guest` or `user-{numeric-id}` and contains
+no secret session material.
+
+Laravel old input/server validation state is authoritative over browser draft
+state. When no server-restored values are present, a valid draft is restored
+before conditional-field synchronization, preserving ordered repeatable Customs
+Form Number rows and valid `Other` dependent fields. Explicit Clear draft resets
+to current Agent defaults and clears only the draft. Successful submission clears
+the draft on the server-gated success page; validation, refresh, locale switch,
+photo failure, and other unsuccessful submissions do not clear it.
+
+Temporary photo preview restoration uses a read-only bearer-token-authenticated
+endpoint scoped through `PhotoUploadSessionResolver` and the session's own
+`PhotoUpload` relation. Verified objects are read and streamed through the
+configured Laravel filesystem disk for every storage mode, including private
+Spaces. Direct PUT upload remains browser-to-Spaces, but temporary preview GET
+is application-mediated and application-streamed; the browser never follows a
+Spaces GET redirect and therefore needs no Spaces GET CORS dependency. The
+browser fetches preview bytes with the existing session token, creates a local
+Blob URL, and uses the existing preview cleanup pathways. No image is re-uploaded,
+no object is made public, and no storage path or presigned URL is persisted in
+browser draft state.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.

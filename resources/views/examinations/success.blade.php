@@ -10,7 +10,7 @@
         <p class="mt-6 text-sm font-semibold tracking-wide text-green-700 uppercase">
             {{ __('examination.success.submission_number_label') }}
         </p>
-        <p id="submission-number" class="mt-1 text-4xl font-extrabold break-all text-green-900">
+        <p id="submission-number" data-draft-actor="{{ auth()->check() ? 'user-'.auth()->id() : 'guest' }}" class="mt-1 text-4xl font-extrabold break-all text-green-900">
             {{ $submissionNo }}
         </p>
 

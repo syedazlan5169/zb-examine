@@ -152,6 +152,24 @@ export async function readSession(publicId, token) {
     });
 }
 
+export async function fetchPhotoPreview(publicId, token, photoPublicId, options = {}) {
+    const response = await fetch(`/photo-upload-sessions/${publicId}/photos/${photoPublicId}/preview`, {
+        method: 'GET',
+        headers: {
+            Accept: 'image/jpeg',
+            ...sessionHeaders(token),
+        },
+        signal: options?.signal,
+    });
+
+    if (!response.ok) {
+        const error = normalizeErrorResponse(null, response.status);
+        throw error;
+    }
+
+    return response.blob();
+}
+
 export async function allocatePhoto(publicId, token, options = {}) {
     return requestJson(`/photo-upload-sessions/${publicId}/photos`, {
         method: 'POST',

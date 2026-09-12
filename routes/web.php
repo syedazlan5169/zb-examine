@@ -11,6 +11,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StaffExaminationController;
+use App\Http\Controllers\TemporaryPhotoPreviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [ExaminationController::class, 'root'])->name('home');
@@ -92,6 +93,8 @@ Route::post('/photo-upload-sessions', [PhotoUploadSessionController::class, 'sto
     ->name('photo-upload-sessions.store');
 Route::get('/photo-upload-sessions/{sessionPublicId}', [PhotoUploadSessionController::class, 'show'])
     ->name('photo-upload-sessions.show');
+Route::get('/photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/preview', [TemporaryPhotoPreviewController::class, 'show'])
+    ->name('photo-upload-sessions.photos.preview');
 Route::post('/photo-upload-sessions/{sessionPublicId}/photos', [PhotoUploadController::class, 'store'])
     ->name('photo-upload-sessions.photos.store');
 Route::post('/photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/authorize', [PhotoUploadController::class, 'authorize'])

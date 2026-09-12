@@ -30,6 +30,29 @@ class ExaminationSubmissionFormTest extends TestCase
         $this->get(route('examinations.create'))->assertOk();
     }
 
+    public function test_form_exposes_safe_draft_contract_metadata(): void
+    {
+        $response = $this->get(route('examinations.create'));
+
+        $response->assertOk()
+            ->assertSee('data-draft-actor="guest"', false)
+            ->assertSee('data-draft-version="1"', false)
+            ->assertSee('data-server-values="false"', false)
+            ->assertSee('id="examination-draft-status"', false)
+            ->assertSee('id="examination-draft-clear"', false);
+    }
+
+    public function test_authenticated_form_draft_context_uses_only_the_user_id(): void
+    {
+        $user = User::factory()->agent()->create();
+
+        $this->actingAs($user)
+            ->get(route('examinations.create'))
+            ->assertOk()
+            ->assertSee('data-draft-actor="user-'.$user->id.'"', false)
+            ->assertSee('data-draft-version="1"', false);
+    }
+
     public function test_guest_root_renders_the_landing_page(): void
     {
         $this->get(route('home'))
@@ -179,6 +202,18 @@ class ExaminationSubmissionFormTest extends TestCase
         $response->assertSee('Medan nama ejen wajib diisi.');
     }
 
+    public function test_validation_round_trip_marks_server_values_as_authoritative(): void
+    {
+        $response = $this->from(route('examinations.create'))
+            ->post('/examinations', $this->validPayload(['agent_name' => '']));
+
+        $response->assertRedirect(route('examinations.create'));
+
+        $this->get(route('examinations.create'))
+            ->assertSee('data-server-values="true"', false)
+            ->assertSee('value=""', false);
+    }
+
     public function test_invalid_enum_values_are_rejected(): void
     {
         $this->post('/examinations', $this->validPayload([
@@ -284,6 +319,9 @@ class ExaminationSubmissionFormTest extends TestCase
         $response->assertSessionHas('examination_success', [
             'submission_no' => $examination->submission_no,
         ]);
+
+        $this->get(route('examinations.success'))
+            ->assertSee('data-draft-actor="guest"', false);
     }
 
     public function test_authenticated_user_id_is_persisted_but_submitted_values_are_snapshotted(): void

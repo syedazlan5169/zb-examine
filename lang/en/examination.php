@@ -98,6 +98,13 @@ return [
         'copied' => 'Copied!',
     ],
 
+    'draft' => [
+        'saved' => 'Draft saved in this browser tab.',
+        'restored' => 'Draft restored.',
+        'clear' => 'Clear draft',
+        'cleared' => 'Draft cleared.',
+    ],
+
     'success' => [
         'heading' => 'Examination Submitted',
         'message' => 'Your examination has been successfully registered. Please keep the submission number below for reference.',

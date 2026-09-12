@@ -1195,3 +1195,36 @@ anchor jump. The detail region has the stable `id="examination-details"`.
 Empty Today-only results use distinct localized copy. Mobile card redesign,
 draft persistence, photo preview restoration, and other later phases remain
 deferred.
+
+## Phase 3 — Submission Resilience
+
+The Examination form now keeps non-file in-progress values in a versioned
+`sessionStorage` draft. Draft keys are actor-scoped using either `guest` or the
+authenticated User's numeric identifier, so switching from one authenticated
+User to another in the same browser tab cannot reuse the previous User's draft.
+The draft expires after 24 hours and stores only ordinary form fields, including
+the ordered Customs Form Number array. It never stores CSRF values, photo
+credentials, presigned URLs, files, Blobs, or image bytes.
+
+The form exposes an explicit server-values marker. Laravel old input and
+validation state take precedence over a browser draft; otherwise the draft
+overrides Agent profile defaults for the current form only. Conditional `Other`
+fields and repeatable Customs Form Number rows are restored before the existing
+conditional-field synchronization runs. A small translated status is shown for
+draft saved/restored/cleared states, and Clear draft returns fields to the
+current Agent defaults without touching the independent photo upload session.
+The draft is cleared only by explicit Clear draft or the server-gated success
+page.
+
+Temporary verified-photo previews are restored without re-uploading images. The
+browser resumes the bearer-token-owned `PhotoUploadSession`, then fetches each
+verified preview through the protected
+`photo-upload-sessions.photos.preview` endpoint and creates a local Blob URL.
+The endpoint scopes the photo lookup through the authenticated session, rejects
+wrong/cross-session/expired/finalized/pending access, streams private local
+objects from the configured Laravel filesystem disk for both proxy and direct
+storage. Direct PUT upload remains browser-to-Spaces, but temporary preview GET
+is always application-mediated and application-streamed, so browser recovery has
+no Spaces GET CORS dependency. Responses are private and no-store; storage
+paths and bucket URLs are not exposed. Existing Blob URL replacement/removal
+cleanup remains the browser ownership mechanism.

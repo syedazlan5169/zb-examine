@@ -3,6 +3,18 @@
 @section('title', __('examination.title').' — '.__('app.name'))
 
 @section('content')
+    @php
+        $hasServerValues = session()->has('_old_input') || $errors->any();
+        $draftActor = auth()->check() ? 'user-'.auth()->id() : 'guest';
+        $agentDefaultsForDraft = [
+            'agent_name' => $agentDefaults['agent_name'] ?? '',
+            'agent_phone' => $agentDefaults['agent_phone'] ?? '',
+            'agent_code' => $agentDefaults['agent_code'] ?? '',
+            'agent_company_name' => $agentDefaults['agent_company_name'] ?? '',
+            'agent_station_code' => $agentDefaults['agent_station_code'] ?? '',
+        ];
+    @endphp
+
     <h1 class="text-2xl font-bold">{{ __('examination.title') }}</h1>
     <p class="mt-1 mb-6 text-sm text-gray-600">{{ __('app.name') }}</p>
 
@@ -23,6 +35,13 @@
         action="{{ route('examinations.store') }}"
         id="examination-form"
         data-loading-text="{{ __('examination.actions.submitting') }}"
+        data-draft-actor="{{ $draftActor }}"
+        data-draft-version="1"
+        data-server-values="{{ $hasServerValues ? 'true' : 'false' }}"
+        data-agent-defaults='@json($agentDefaultsForDraft)'
+        data-draft-saved-label="{{ __('examination.draft.saved') }}"
+        data-draft-restored-label="{{ __('examination.draft.restored') }}"
+        data-draft-cleared-label="{{ __('examination.draft.cleared') }}"
         novalidate
     >
         @csrf
@@ -274,5 +293,16 @@
         >
             {{ __('examination.actions.submit') }}
         </button>
+
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p id="examination-draft-status" role="status" aria-live="polite" class="min-h-5 text-sm text-gray-600"></p>
+            <button
+                type="button"
+                id="examination-draft-clear"
+                class="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900"
+            >
+                {{ __('examination.draft.clear') }}
+            </button>
+        </div>
     </form>
 @endsection
