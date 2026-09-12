@@ -354,6 +354,23 @@ Number rows stack responsively without changing their DOM names or ordering.
 Staff workspace, Agent history, Reports, My Account, User Management, mobile
 Examination cards, and broader page redesign remain deferred to later slices.
 
+## D038 — Phase 8C Remaining Application UI Polish
+
+Phase 8C refines Agent history, Reports, My Account/password, and Admin User
+Management using the shared Blade/Tailwind primitives. Agent history favors
+compact snapshot records on mobile and readable table rows on larger screens.
+Reports use grouped filter/export controls, compact metrics, responsive panels,
+and intentional table overflow for Monthly Statement. Account/security forms use
+grouped surfaces and shared feedback. User Management uses a compact operational
+list and a small semantic Badge primitive for repeated role and active/inactive
+states.
+
+All query, calculation, export, pagination, authorization, password, locale,
+session, and safety logic remains unchanged. No routes, JavaScript, charts,
+additional filters, new fields, or dependencies were introduced. Phase 8C does
+not redesign the staff workspace, navigation, landing/auth/submission pages, or
+other later-phase surfaces.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.

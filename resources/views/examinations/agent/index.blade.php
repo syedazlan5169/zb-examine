@@ -4,13 +4,19 @@
 @section('content_width', 'max-w-5xl')
 
 @section('content')
-    <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
-        <h1 class="mb-6 text-2xl font-bold">{{ __('examination.agent.list_title') }}</h1>
+    <x-ui.card>
+        <div class="flex flex-col gap-1 border-b border-gray-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ __('app.name') }}</p>
+                <h1 class="mt-1 text-2xl font-bold text-gray-950">{{ __('examination.agent.list_title') }}</h1>
+            </div>
+            <p class="text-sm text-gray-600">{{ __('examination.agent.detail_title') }}</p>
+        </div>
 
         @if ($examinations->count() > 0)
             <div class="space-y-3 md:hidden">
                 @foreach ($examinations as $examination)
-                    <a href="{{ route('agent.examinations.show', $examination) }}" class="block rounded-lg border border-gray-200 bg-gray-50 p-4 text-left transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <a href="{{ route('agent.examinations.show', $examination) }}" class="block rounded-md border border-gray-200 bg-gray-50 p-3 text-left transition hover:border-gray-400 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                         <div class="flex items-start justify-between gap-3">
                             <span class="text-base font-bold text-blue-600 whitespace-nowrap">{{ $examination->submission_no }}</span>
                             <time datetime="{{ $examination->submitted_at->toIso8601String() }}" class="text-right text-xs text-gray-500">
@@ -18,7 +24,7 @@
                             </time>
                         </div>
 
-                        <dl class="mt-3 space-y-2 text-sm">
+                        <dl class="mt-3 grid gap-2 text-sm">
                             <div class="flex items-start justify-between gap-3">
                                 <dt class="text-gray-600">{{ __('examination.fields.location') }}</dt>
                                 <dd class="text-right text-gray-900">{{ $examination->location->label() }}</dd>
@@ -26,6 +32,10 @@
                             <div class="flex items-start justify-between gap-3">
                                 <dt class="text-gray-600">{{ __('examination.fields.container_status') }}</dt>
                                 <dd class="text-right font-medium text-gray-900">{{ $examination->container_status->label() }}</dd>
+                            </div>
+                            <div class="flex items-start justify-between gap-3">
+                                <dt class="text-gray-600">{{ __('examination.fields.agent_company_name') }}</dt>
+                                <dd class="max-w-[65%] text-right text-gray-900">{{ $examination->agent_company_name }}</dd>
                             </div>
                         </dl>
                     </a>
@@ -83,9 +93,7 @@
                 </nav>
             @endif
         @else
-            <p class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm text-gray-600">
-                {{ __('examination.agent.empty_state') }}
-            </p>
+            <x-ui.empty-state :title="__('examination.agent.empty_state')" />
         @endif
-    </div>
+    </x-ui.card>
 @endsection

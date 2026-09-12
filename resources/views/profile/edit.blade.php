@@ -3,21 +3,21 @@
 @section('title', __('profile.title').' — '.__('app.name'))
 
 @section('content')
-    <h1 class="text-2xl font-bold">{{ $user->role === \App\Enums\UserRole::Agent ? __('profile.agent_profile') : __('profile.account') }}</h1>
-    <p class="mt-1 mb-6 text-sm text-gray-600">{{ __('profile.subtitle') }}</p>
+    <div class="mb-6">
+        <p class="text-sm font-semibold uppercase tracking-wide text-gray-500">{{ __('app.name') }}</p>
+        <h1 class="mt-2 text-2xl font-bold text-gray-950">{{ $user->role === \App\Enums\UserRole::Agent ? __('profile.agent_profile') : __('profile.account') }}</h1>
+        <p class="mt-1 text-sm text-gray-600">{{ __('profile.subtitle') }}</p>
+    </div>
 
     @if (session('status'))
-        <div class="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-            {{ session('status') }}
-        </div>
+        <x-ui.alert type="success" class="mb-6">{{ session('status') }}</x-ui.alert>
     @endif
 
     @if ($errors->any())
-        <div role="alert" class="mb-6 rounded-lg border-2 border-red-600 bg-red-50 px-4 py-3 text-red-800">
-            <p class="font-semibold">{{ __('profile.validation_summary') }}</p>
-        </div>
+        <x-ui.alert type="error" class="mb-6">{{ __('profile.validation_summary') }}</x-ui.alert>
     @endif
 
+    <x-ui.card>
     <form method="POST" action="{{ route('profile.update') }}" class="space-y-5">
         @csrf
         @method('PATCH')
@@ -33,11 +33,12 @@
         @endif
 
         <div class="pt-2">
-            <button type="submit" class="rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white hover:bg-gray-700">
+            <x-ui.button type="submit">
                 {{ __('profile.save') }}
-            </button>
+            </x-ui.button>
         </div>
     </form>
+    </x-ui.card>
 
     <p class="mt-5 text-sm">
         <a href="{{ route('profile.password.edit') }}" class="font-semibold text-gray-900 underline">{{ __('profile.password_change') }}</a>

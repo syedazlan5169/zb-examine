@@ -17,15 +17,16 @@
                 <p class="mt-1 text-sm text-gray-600">{{ $period->label() }}</p>
             </div>
 
-            <a href="{{ route('reports.export', $periodQuery) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">
+            <x-ui.button href="{{ route('reports.export', $periodQuery) }}" variant="secondary">
                 {{ __('reports.actions.export') }}
-            </a>
+            </x-ui.button>
         </div>
 
-        <form method="GET" action="{{ route('reports.index') }}" class="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
+        <x-ui.card>
+        <form method="GET" action="{{ route('reports.index') }}" class="flex flex-wrap items-end gap-3">
             <div class="flex min-w-32 flex-1 flex-col gap-1">
                 <label for="month" class="text-sm font-semibold">{{ __('reports.filters.month') }}</label>
-                <select id="month" name="month" class="min-h-11 rounded-lg border-2 border-gray-300 px-3 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">
+                <select id="month" name="month" class="min-h-11 rounded-md border-2 border-gray-300 px-3 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">
                     @for ($month = 1; $month <= 12; $month++)
                         <option value="{{ $month }}" @selected($period->month === $month)>{{ Carbon\CarbonImmutable::create($period->year, $month, 1)->translatedFormat('F') }}</option>
                     @endfor
@@ -33,14 +34,15 @@
             </div>
             <div class="flex min-w-32 flex-1 flex-col gap-1">
                 <label for="year" class="text-sm font-semibold">{{ __('reports.filters.year') }}</label>
-                <input id="year" name="year" type="number" min="2000" max="{{ now($period->timezone)->year + 1 }}" value="{{ $period->year }}" class="min-h-11 rounded-lg border-2 border-gray-300 px-3 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">
+                <input id="year" name="year" type="number" min="2000" max="{{ now($period->timezone)->year + 1 }}" value="{{ $period->year }}" class="min-h-11 rounded-md border-2 border-gray-300 px-3 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">
             </div>
-            <button type="submit" class="min-h-11 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">{{ __('reports.filters.view') }}</button>
+            <x-ui.button type="submit">{{ __('reports.filters.view') }}</x-ui.button>
             <div class="flex w-full gap-2 sm:ml-auto sm:w-auto">
                 <a href="{{ route('reports.index', ['year' => $previousPeriod->year, 'month' => $previousPeriod->month]) }}" class="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold hover:bg-gray-50 sm:flex-none">{{ __('reports.filters.previous') }}</a>
                 <a href="{{ route('reports.index', ['year' => $nextPeriod->year, 'month' => $nextPeriod->month]) }}" class="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold hover:bg-gray-50 sm:flex-none">{{ __('reports.filters.next') }}</a>
             </div>
         </form>
+        </x-ui.card>
 
         <section aria-labelledby="summary-heading">
             <h2 id="summary-heading" class="mb-3 text-lg font-bold">{{ __('reports.summary.title') }}</h2>
@@ -93,9 +95,8 @@
             </x-ui.card>
         </div>
 
-        <section class="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby="statement-heading">
+            <x-ui.card title="{{ __('reports.statement.title') }}" aria-labelledby="statement-heading">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="statement-heading" class="text-lg font-bold">{{ __('reports.statement.title') }}</h2>
                 <p class="text-sm text-gray-600">{{ __('reports.statement.result_count', ['count' => $statement->total()]) }}</p>
             </div>
             <div class="mt-3 overflow-x-auto">
@@ -139,6 +140,6 @@
             @if ($statement->hasPages())
                 <div class="mt-4">{{ $statement->links() }}</div>
             @endif
-        </section>
+            </x-ui.card>
     </div>
 @endsection

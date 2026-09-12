@@ -1328,6 +1328,21 @@ Later Phase 8 slices remain responsible for staff workspace, Agent history,
 Reports, My Account, User Management, mobile Examination cards, and broader
 page-specific redesign.
 
+## Phase 8C — Remaining Application UI Polish
+
+Agent history now uses a compact shared-card surface with denser mobile records,
+existing snapshot context, and the existing pagination/ownership behavior.
+Reports now share a cohesive filter/export header, metric-card hierarchy,
+responsive analytical panels, and a contained Monthly Statement surface without
+changing calculations, pagination, XLSX behavior, or soft-delete exclusion.
+
+My Account and password-change pages now use grouped surfaces, shared alerts,
+shared controls, and clearer profile/security hierarchy. Admin User Management
+now uses the same action/filter surfaces plus restrained semantic role and
+active/inactive badges; create, edit, password reset, and safety rules are
+unchanged. This remains a presentation refinement; no Phase 9 redesign or new
+business workflow was introduced.
+
 ## Phase 8B — Examination Workspace and Mobile Presentation
 
 The staff Examination workspace now presents denser, more scannable list rows
