@@ -21,6 +21,7 @@ final class ExaminationSubmissionService
         private readonly CustomsFormNumberNormalizer $normalizer,
         private readonly SubmissionNumberGenerator $submissionNumbers,
         private readonly PhotoUploadSessionFinalizer $photoFinalizer,
+        private readonly AgentProfileEnrichmentService $profileEnrichment,
     ) {}
 
     /**
@@ -99,6 +100,10 @@ final class ExaminationSubmissionService
             $examination->customsFormNumbers()->createMany($rows);
 
             $this->photoFinalizer->attachPhotos($examination, $lockedSession);
+
+            if ($user !== null) {
+                $this->profileEnrichment->enrich($user, $data);
+            }
 
             return $examination;
         });

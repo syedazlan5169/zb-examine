@@ -1251,3 +1251,20 @@ Phase 3 draft and protected-preview behavior remains unchanged: locale changes
 do not clear the actor-scoped draft, temporary photo session, or restored
 previews. Agent profile enrichment, soft delete, and broader UI work remain
 deferred.
+
+## Phase 5 — Agent Profile Enrichment
+
+After a successful authenticated Agent submission, the existing submission
+transaction now calls `AgentProfileEnrichmentService`. The service reacquires
+the current User row with `lockForUpdate()` and independently fills only blank
+`phone`, `agent_code`, `company_name`, and `station_code` values from the
+already normalized submitted snapshot data. It saves only when at least one
+field changes.
+
+The Examination historical snapshot is created from submitted values before
+enrichment and remains independent of the User profile. Later submissions may
+contain different values without overwriting established profile fields.
+Guests, Officers, and Admins remain ineligible. Enrichment occurs inside the
+existing post-number-allocation persistence transaction, so User changes roll
+back with Examination, customs-form, and photo-finalization failures. No
+migration was required; the existing User columns are reused.

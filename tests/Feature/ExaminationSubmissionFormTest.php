@@ -344,6 +344,178 @@ class ExaminationSubmissionFormTest extends TestCase
         $this->assertSame('AGT-001', $persisted->agent_code);
     }
 
+    public function test_successful_agent_submission_enriches_all_empty_profile_fields(): void
+    {
+        $agent = User::factory()->agent()->create([
+            'phone' => null,
+            'agent_code' => null,
+            'company_name' => null,
+            'station_code' => null,
+        ]);
+
+        $this->actingAs($agent)->post('/examinations', $this->validPayload())->assertRedirect(route('examinations.success'));
+
+        $agent->refresh();
+        $this->assertSame('0123456789', $agent->phone);
+        $this->assertSame('AGT-001', $agent->agent_code);
+        $this->assertSame('Syarikat Penghantaran Sdn Bhd', $agent->company_name);
+        $this->assertSame('STN-01', $agent->station_code);
+    }
+
+    public function test_agent_enrichment_only_fills_blank_fields(): void
+    {
+        $agent = User::factory()->agent()->create([
+            'phone' => 'existing-phone',
+            'agent_code' => null,
+            'company_name' => 'Existing Company',
+            'station_code' => 'EXISTING-STATION',
+        ]);
+
+        $this->actingAs($agent)->post('/examinations', $this->validPayload([
+            'agent_phone' => 'new-phone',
+            'agent_code' => 'NEW-CODE',
+            'agent_company_name' => 'New Company',
+            'agent_station_code' => 'NEW-STATION',
+        ]))->assertRedirect(route('examinations.success'));
+
+        $agent->refresh();
+        $this->assertSame('existing-phone', $agent->phone);
+        $this->assertSame('NEW-CODE', $agent->agent_code);
+        $this->assertSame('Existing Company', $agent->company_name);
+        $this->assertSame('EXISTING-STATION', $agent->station_code);
+    }
+
+    public function test_full_agent_profile_remains_unchanged_while_snapshot_uses_submitted_values(): void
+    {
+        $agent = User::factory()->agent()->create([
+            'phone' => 'existing-phone',
+            'agent_code' => 'EXISTING-CODE',
+            'company_name' => 'Existing Company',
+            'station_code' => 'EXISTING-STATION',
+        ]);
+
+        $this->actingAs($agent)->post('/examinations', $this->validPayload([
+            'agent_phone' => 'new-phone',
+            'agent_code' => 'NEW-CODE',
+            'agent_company_name' => 'New Company',
+            'agent_station_code' => 'NEW-STATION',
+        ]))->assertRedirect(route('examinations.success'));
+
+        $agent->refresh();
+        $examination = Examination::firstOrFail();
+        $this->assertSame('existing-phone', $agent->phone);
+        $this->assertSame('EXISTING-CODE', $agent->agent_code);
+        $this->assertSame('Existing Company', $agent->company_name);
+        $this->assertSame('EXISTING-STATION', $agent->station_code);
+        $this->assertSame('new-phone', $examination->agent_phone);
+        $this->assertSame('NEW-CODE', $examination->agent_code);
+        $this->assertSame('New Company', $examination->agent_company_name);
+        $this->assertSame('NEW-STATION', $examination->agent_station_code);
+    }
+
+    public function test_second_agent_submission_cannot_replace_enriched_profile_values(): void
+    {
+        $agent = User::factory()->agent()->create(['phone' => null, 'agent_code' => null, 'company_name' => null, 'station_code' => null]);
+
+        $this->actingAs($agent)->post('/examinations', $this->validPayload())->assertRedirect(route('examinations.success'));
+        $this->actingAs($agent)->post('/examinations', $this->validPayload([
+            'agent_phone' => 'second-phone',
+            'agent_code' => 'SECOND-CODE',
+            'agent_company_name' => 'Second Company',
+            'agent_station_code' => 'SECOND-STATION',
+        ]))->assertRedirect(route('examinations.success'));
+
+        $agent->refresh();
+        $second = Examination::query()->orderByDesc('id')->firstOrFail();
+        $this->assertSame('0123456789', $agent->phone);
+        $this->assertSame('AGT-001', $agent->agent_code);
+        $this->assertSame('Syarikat Penghantaran Sdn Bhd', $agent->company_name);
+        $this->assertSame('STN-01', $agent->station_code);
+        $this->assertSame('second-phone', $second->agent_phone);
+        $this->assertSame('SECOND-CODE', $second->agent_code);
+    }
+
+    public function test_guest_officer_and_admin_submissions_do_not_enrich_profiles(): void
+    {
+        $this->post('/examinations', $this->validPayload())->assertRedirect(route('examinations.success'));
+
+        foreach ([User::factory()->officer()->create(), User::factory()->admin()->create()] as $user) {
+            $this->actingAs($user)->post('/examinations', $this->validPayload())->assertRedirect(route('examinations.success'));
+            $user->refresh();
+            $this->assertNull($user->phone);
+            $this->assertNull($user->agent_code);
+            $this->assertNull($user->company_name);
+            $this->assertNull($user->station_code);
+        }
+    }
+
+    public function test_blank_submitted_profile_values_do_not_fill_empty_profile_fields(): void
+    {
+        $agent = User::factory()->agent()->create([
+            'phone' => null,
+            'agent_code' => null,
+            'company_name' => null,
+            'station_code' => null,
+        ]);
+
+        $this->actingAs($agent)->post('/examinations', $this->validPayload([
+            'agent_phone' => '   ',
+            'agent_code' => '   ',
+            'agent_company_name' => '   ',
+            'agent_station_code' => '   ',
+        ]))->assertSessionHasErrors(['agent_phone', 'agent_code', 'agent_company_name', 'agent_station_code']);
+
+        $this->assertDatabaseHas('users', ['id' => $agent->id, 'phone' => null, 'agent_code' => null, 'company_name' => null, 'station_code' => null]);
+    }
+
+    public function test_profile_enrichment_rolls_back_when_the_submission_transaction_fails(): void
+    {
+        $agent = User::factory()->agent()->create([
+            'phone' => null,
+            'agent_code' => null,
+            'company_name' => null,
+            'station_code' => null,
+        ]);
+        $event = 'eloquent.saving: '.User::class;
+
+        Event::listen($event, function (User $saving) use ($agent): void {
+            if ($saving->is($agent)) {
+                throw new LogicException('profile persistence failure');
+            }
+        });
+
+        $this->actingAs($agent)
+            ->from(route('examinations.create'))
+            ->post('/examinations', $this->validPayload())
+            ->assertRedirect(route('examinations.create'));
+
+        Event::forget($event);
+        $agent->refresh();
+        $this->assertSame(0, Examination::count());
+        $this->assertNull($agent->phone);
+        $this->assertNull($agent->agent_code);
+        $this->assertNull($agent->company_name);
+        $this->assertNull($agent->station_code);
+    }
+
+    public function test_enrichment_reloads_locked_profile_state_before_filling_fields(): void
+    {
+        $agent = User::factory()->agent()->create([
+            'phone' => null,
+            'agent_code' => null,
+            'company_name' => null,
+            'station_code' => null,
+        ]);
+
+        $this->actingAs($agent);
+        User::query()->whereKey($agent->id)->update(['agent_code' => 'CONCURRENT-CODE']);
+
+        $this->post('/examinations', $this->validPayload(['agent_code' => 'SUBMITTED-CODE']))
+            ->assertRedirect(route('examinations.success'));
+
+        $this->assertSame('CONCURRENT-CODE', $agent->fresh()->agent_code);
+    }
+
     public function test_multiple_free_form_customs_form_numbers_succeed(): void
     {
         $this->post('/examinations', $this->validPayload([

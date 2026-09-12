@@ -260,6 +260,27 @@ Guest locale remains session-only. Registration initializes the new Agent's
 preference from the active guest locale. Locale switching does not clear the
 Phase 3 actor-scoped draft or temporary photo preview/session state.
 
+## D033 — Agent-Only Empty-Field Profile Enrichment
+
+Successful submissions by authenticated Agents may fill only currently blank
+User fields: `phone`, `agent_code`, `company_name`, and `station_code`. Blank
+means `null`, an empty string, or whitespace-only after the existing submitted
+value normalization. Empty submitted values never populate a profile field, and
+non-empty profile values are never overwritten.
+
+`AgentProfileEnrichmentService` runs inside the existing Examination persistence
+transaction, after the historical Examination snapshot and photo finalization
+work. It reacquires the User row with `lockForUpdate()` before evaluating field
+emptiness, so concurrent submissions use current database state rather than the
+stale authenticated model. The User update is skipped when no field changes.
+The existing submission-number allocation remains outside this transaction.
+
+Guest, Officer, and Admin submissions do not enrich any User. Examination
+snapshots always retain the submitted values independently of later profile
+state. No migration is required because all eligible User columns already
+exist. A User persistence failure rolls back the profile and Examination work
+together.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.
