@@ -86,6 +86,30 @@ class MonthlyReportExportTest extends TestCase
         $this->assertCount(1, $sheets['Monthly Statement']);
     }
 
+    public function test_export_excludes_soft_deleted_examinations(): void
+    {
+        Examination::factory()->create([
+            'submission_no' => 'ZB-EXPORT-LIVE',
+            'submitted_at' => CarbonImmutable::parse('2026-09-10 01:00:00', 'UTC'),
+        ]);
+        $deleted = Examination::factory()->create([
+            'submission_no' => 'ZB-EXPORT-DELETED',
+            'submitted_at' => CarbonImmutable::parse('2026-09-10 02:00:00', 'UTC'),
+        ]);
+        $deleted->delete();
+
+        $path = app(MonthlyReportExport::class)->create(
+            ReportPeriod::make(2026, 9, 'Asia/Kuala_Lumpur'),
+            app(MonthlyReportService::class),
+        );
+        $sheets = $this->readWorkbook($path);
+        unlink($path);
+
+        $values = array_merge(...$sheets['Monthly Statement']);
+        $this->assertContains('ZB-EXPORT-LIVE', $values);
+        $this->assertNotContains('ZB-EXPORT-DELETED', $values);
+    }
+
     public function test_malay_workbook_contains_malay_summary_and_statement_headings(): void
     {
         $originalLocale = app()->getLocale();

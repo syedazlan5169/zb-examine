@@ -41,6 +41,9 @@ Route::get('/examinations', [StaffExaminationController::class, 'index'])
 Route::get('/examinations/{examination}', [StaffExaminationController::class, 'show'])
     ->middleware(['auth', 'active'])
     ->name('examinations.show');
+Route::delete('/examinations/{examination}', [StaffExaminationController::class, 'destroy'])
+    ->middleware(['auth', 'active'])
+    ->name('examinations.destroy');
 Route::get('/examinations/{examination}/photos/{photo}/preview', [ExaminationPhotoPreviewController::class, 'show'])
     ->middleware(['auth', 'active'])
     ->scopeBindings()

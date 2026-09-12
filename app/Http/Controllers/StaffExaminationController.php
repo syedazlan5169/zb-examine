@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Examination;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -32,6 +34,19 @@ class StaffExaminationController extends Controller
             ...$this->sidebarData($request),
             'selectedExamination' => $examination,
         ]);
+    }
+
+    public function destroy(Examination $examination): RedirectResponse
+    {
+        Gate::authorize('delete', $examination);
+
+        DB::transaction(function () use ($examination): void {
+            $examination->deleted_by_user_id = auth()->id();
+            $examination->save();
+            $examination->delete();
+        });
+
+        return redirect()->route('examinations.index')->with('status', __('examination.staff.deleted'));
     }
 
     /**

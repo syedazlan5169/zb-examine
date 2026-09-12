@@ -25,4 +25,9 @@ class ExaminationPolicy
             && $user->role === UserRole::Agent
             && $examination->user_id === $user->id;
     }
+
+    public function delete(User $user, Examination $examination): bool
+    {
+        return $examination->exists && $user->role === UserRole::Admin;
+    }
 }

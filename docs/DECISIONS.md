@@ -281,6 +281,31 @@ state. No migration is required because all eligible User columns already
 exist. A User persistence failure rolls back the profile and Examination work
 together.
 
+## D034 — Admin Examination Soft Delete and Evidence Retention
+
+Examinations use Laravel `SoftDeletes` with nullable `deleted_at` and nullable
+`deleted_by_user_id`, linked to `users` with `nullOnDelete`. Existing records
+remain active with null deletion fields; no backfill is required. Normal
+`Examination` Eloquent queries and route model binding exclude deleted rows.
+
+Only an Admin may call the CSRF-protected `DELETE /examinations/{examination}`
+route. The controller authorizes through `ExaminationPolicy::delete()` and
+writes `deleted_by_user_id` plus the soft-delete timestamp in one transaction.
+Officer, Agent, and Guest requests cannot perform the mutation. A repeated
+normal delete/detail request for an already deleted record resolves as not
+found.
+
+Soft deletion is operational removal only. ExaminationPhoto rows, evidence
+metadata, private local objects, private Spaces objects, and finalized upload
+records are not deleted or queued for cleanup. Staff lists, Agent history,
+reports, Monthly Statement, report photo metrics, export rows, and export
+high-watermark queries all rely on the normal SoftDeletes scope and therefore
+exclude deleted Examinations.
+
+The Admin detail UI uses an application-native translated confirmation modal and
+redirects to the staff list after success. Trash, Restore, force delete, bulk
+delete, and automatic evidence cleanup remain intentionally unimplemented.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.

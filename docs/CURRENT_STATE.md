@@ -1268,3 +1268,24 @@ Guests, Officers, and Admins remain ineligible. Enrichment occurs inside the
 existing post-number-allocation persistence transaction, so User changes roll
 back with Examination, customs-form, and photo-finalization failures. No
 migration was required; the existing User columns are reused.
+
+## Phase 6 — Admin Examination Soft Delete
+
+Examinations now use Laravel `SoftDeletes` with nullable `deleted_at` and
+`deleted_by_user_id` columns. The migration is backward-compatible and requires
+no backfill. Only Admin users may issue the CSRF-protected
+`DELETE /examinations/{examination}` mutation. The audit field and soft delete
+are written atomically, and normal route model binding excludes deleted records,
+so a deleted detail URL returns 404.
+
+Normal Eloquent Examination queries exclude deleted records across the staff
+workspace, Agent history, reports, Monthly Statement, and XLSX export. Report
+photo counts begin from the SoftDeletes-scoped Examination query, so retained
+evidence rows and objects do not contribute to normal metrics.
+
+ExaminationPhoto rows and private storage objects are retained. No cleanup,
+force-delete route, Trash page, Restore action, or permanent deletion UI exists.
+The Admin detail view has a translated confirmation modal showing the Submission
+Number, retention wording, Cancel/Delete actions, Escape/backdrop close, focus
+return, and duplicate-submit protection. Successful deletion redirects to the
+staff list with translated feedback.

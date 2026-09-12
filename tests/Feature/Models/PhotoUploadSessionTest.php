@@ -138,7 +138,7 @@ class PhotoUploadSessionTest extends TestCase
         $examination = $this->createExamination();
         $session = PhotoUploadSession::factory()->create(['examination_id' => $examination->id]);
 
-        $examination->delete();
+        $examination->forceDelete();
 
         $this->assertDatabaseMissing('photo_upload_sessions', ['id' => $session->id]);
     }
@@ -150,7 +150,7 @@ class PhotoUploadSessionTest extends TestCase
         $upload = PhotoUpload::factory()->create(['photo_upload_session_id' => $session->id]);
 
         // A single FK-driven delete, not application code walking the relations manually.
-        $examination->delete();
+        $examination->forceDelete();
 
         $this->assertDatabaseMissing('examinations', ['id' => $examination->id]);
         $this->assertDatabaseMissing('photo_upload_sessions', ['id' => $session->id]);

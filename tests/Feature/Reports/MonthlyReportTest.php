@@ -135,6 +135,31 @@ class MonthlyReportTest extends TestCase
             ->assertDontSee($link, false);
     }
 
+    public function test_soft_deleted_examinations_are_excluded_from_report_metrics_and_statement(): void
+    {
+        $live = Examination::factory()->create([
+            'submission_no' => 'ZB-LIVE-REPORT',
+            'submitted_at' => CarbonImmutable::parse('2026-09-10 01:00:00', 'UTC'),
+        ]);
+        $deleted = Examination::factory()->create([
+            'submission_no' => 'ZB-DELETED-REPORT',
+            'submitted_at' => CarbonImmutable::parse('2026-09-10 02:00:00', 'UTC'),
+        ]);
+        ExaminationPhoto::factory()->for($live)->count(1)->create();
+        ExaminationPhoto::factory()->for($deleted)->count(2)->create();
+        $deleted->delete();
+
+        $response = $this->actingAs(User::factory()->officer()->create())
+            ->get(route('reports.index', ['year' => 2026, 'month' => 9]));
+
+        $response->assertOk()
+            ->assertSee('ZB-LIVE-REPORT')
+            ->assertDontSee('ZB-DELETED-REPORT');
+        $summary = $response->viewData('summary');
+        $this->assertSame(1, $summary['total_submissions']);
+        $this->assertSame(1, $summary['evidence_photos']);
+    }
+
     public function test_report_labels_follow_the_current_locale(): void
     {
         $this->actingAs(User::factory()->officer()->create())

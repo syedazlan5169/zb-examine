@@ -2,6 +2,9 @@
     <aside class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div class="flex-none border-b border-gray-200 p-4">
             <h1 class="text-xl font-bold">{{ __('examination.staff.list_title') }}</h1>
+            @if (session('status'))
+                <p role="status" class="mt-3 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-medium text-green-800">{{ session('status') }}</p>
+            @endif
             <form method="GET" action="{{ route('examinations.index') }}" class="mt-4 flex flex-wrap items-end gap-2">
                 <div class="min-w-0 flex-1">
                     <label for="search" class="sr-only">{{ __('examination.staff.search') }}</label>
@@ -108,6 +111,11 @@
                 <div class="flex min-h-0 flex-none flex-col lg:max-h-[42%] lg:overflow-y-auto">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-2xl font-bold">{{ __('examination.staff.detail_title') }}</h2>
+                    @can('delete', $selectedExamination)
+                        <button type="button" data-delete-trigger class="rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-red-900">
+                            {{ __('examination.staff.delete') }}
+                        </button>
+                    @endcan
                     <a href="{{ route('examinations.index', array_filter(['search' => $search !== '' ? $search : null, 'today' => $today ? '1' : '0', 'page' => $examinations->currentPage() > 1 ? $examinations->currentPage() : null], static fn ($value): bool => $value !== null)) }}" class="font-semibold underline lg:hidden">{{ __('examination.staff.back_to_list') }}</a>
                 </div>
 
@@ -182,6 +190,24 @@
                     @endif
                 </section>
             </div>
+
+            @can('delete', $selectedExamination)
+                <div id="delete-examination-modal" data-delete-modal hidden role="dialog" aria-modal="true" aria-labelledby="delete-examination-title" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4">
+                    <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+                        <h2 id="delete-examination-title" class="text-xl font-bold">{{ __('examination.staff.delete_title') }}</h2>
+                        <p class="mt-4 text-sm text-gray-700">{{ __('examination.fields.submission_number') }}: <strong>{{ $selectedExamination->submission_no }}</strong></p>
+                        <p class="mt-2 text-sm text-gray-700">{{ __('examination.staff.delete_confirmation') }}</p>
+                        <div class="mt-6 flex justify-end gap-3">
+                            <button type="button" data-delete-cancel class="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 focus:outline focus:ring-2 focus:ring-gray-900">{{ __('examination.staff.cancel') }}</button>
+                            <form method="POST" action="{{ route('examinations.destroy', $selectedExamination) }}">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" data-delete-confirm class="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white focus:outline focus:ring-2 focus:ring-red-900">{{ __('examination.staff.delete') }}</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            @endcan
         @else
             <div class="flex flex-1 items-center justify-center p-8 text-center text-gray-600">
                 {{ __('examination.staff.select_examination') }}

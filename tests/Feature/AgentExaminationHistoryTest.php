@@ -77,6 +77,21 @@ class AgentExaminationHistoryTest extends TestCase
             ->assertOk();
     }
 
+    public function test_soft_deleted_examination_is_excluded_from_agent_history(): void
+    {
+        $agent = User::factory()->agent()->create();
+        $deleted = Examination::factory()->for($agent)->create(['submission_no' => 'ZB-DELETED-HISTORY']);
+        Examination::factory()->for($agent)->create(['submission_no' => 'ZB-LIVE-HISTORY']);
+        $deleted->delete();
+
+        $this->actingAs($agent)
+            ->get(route('agent.examinations.index'))
+            ->assertOk()
+            ->assertSee('ZB-LIVE-HISTORY')
+            ->assertDontSee('href="'.route('agent.examinations.show', $deleted).'"', false)
+            ->assertDontSee('ZB-DELETED-HISTORY');
+    }
+
     public function test_officer_cannot_use_agent_personal_history_index(): void
     {
         $officer = User::factory()->officer()->create();
