@@ -1150,3 +1150,25 @@ authenticated roles. The mobile hamburger/drawer remains deferred to the next
 phase. Draft persistence, photo preview restoration, Remember Me, locale
 preference persistence, profile enrichment, soft deletes, and broader UI
 refinement remain future work.
+
+## Phase 2 — Responsive Navigation Drawer
+
+The shared application navigation now uses the existing `lg` breakpoint:
+desktop navigation is visible at `lg` and above, while smaller viewports use a
+compact header with a real hamburger button and an off-canvas right drawer.
+
+Both presentations render the same authorized navigation source from
+`resources/views/layouts/partials/navigation-links.blade.php`. Existing role
+and Gate checks remain the visibility mechanism; HTTP route authorization
+continues to be the security boundary. Guests see New Submission, Log in,
+Register, and locale selection. Agents, Officers, and Admins receive their
+existing authorized destinations plus New Submission.
+
+The drawer is implemented with vanilla JavaScript in
+`resources/js/mobile-navigation.js`. It starts closed, updates
+`aria-expanded`, references its controlled drawer with `aria-controls`, closes
+through the close button, backdrop, Escape, or normal navigation, locks body
+scroll while open, and restores focus to the trigger when closed. The drawer
+uses native hidden semantics so its controls are not keyboard-focusable while
+closed. Locale presentation remains session-based; locale persistence is still
+deferred to Phase 4.

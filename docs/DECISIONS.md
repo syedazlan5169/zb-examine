@@ -173,6 +173,25 @@ Agents, Officers, and Admins. The mobile drawer is deliberately deferred to a
 later phase. Official product names remain `Sistem Daftar Pemeriksaan` and
 `Examine Registration System`.
 
+## D028 — Phase 2 Responsive Navigation Drawer
+
+The application uses the existing `lg` breakpoint for navigation presentation.
+At `lg` and above, the desktop navigation remains visible. Below `lg`, the
+header is compact and exposes a real button that opens a right-side drawer.
+
+Desktop and mobile navigation render the same authorized destination source from
+`resources/views/layouts/partials/navigation-links.blade.php`; role checks and
+existing Gates are not duplicated between presentations. Navigation visibility
+is convenience only and does not replace HTTP authorization.
+
+The drawer uses Blade, Tailwind, and a small vanilla-JavaScript module. It
+starts closed, uses `aria-expanded` and `aria-controls`, supports close-button,
+backdrop, Escape, and normal-link navigation, prevents body scrolling while
+open, and returns focus to the trigger on close. Native hidden semantics keep
+closed drawer controls out of the keyboard order. Locale selection remains the
+existing session-based behavior and is intentionally not changed by this
+decision.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.
