@@ -18,7 +18,10 @@ class RegistrationController extends Controller
 
     public function store(RegistrationRequest $request, UserAccountService $service, RoleHomeResolver $roleHomeResolver): RedirectResponse
     {
-        $user = $service->register($request->safe()->only(['name', 'username', 'email', 'password']));
+        $user = $service->register(
+            $request->safe()->only(['name', 'username', 'email', 'password']),
+            app()->getLocale(),
+        );
 
         Auth::login($user);
         $request->session()->regenerate();

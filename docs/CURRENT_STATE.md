@@ -1228,3 +1228,26 @@ is always application-mediated and application-streamed, so browser recovery has
 no Spaces GET CORS dependency. Responses are private and no-store; storage
 paths and bucket URLs are not exposed. Existing Blob URL replacement/removal
 cleanup remains the browser ownership mechanism.
+
+## Phase 4 — Remember Me and Authenticated Locale Preference
+
+Login now exposes a translated `remember` checkbox and passes its boolean value
+to Laravel's standard `Auth::attempt($credentials, $remember)` support. The
+existing `users.remember_token`, logout invalidation, password-change rotation,
+Admin reset rotation, inactive-account enforcement, throttling, session
+regeneration, and role-home redirects remain in use. No custom credential,
+password, or remember-cookie storage was added.
+
+Locale resolution is centralized in `App\Services\LocaleService`. Guests use
+the session locale followed by the application default. Authenticated users use
+their supported `users.preferred_locale` followed by the application default;
+an authenticated preference therefore overrides any stale guest session locale
+after login. The existing `ms`/`en` switch validates the allowlist, updates the
+current session, and persists the preference for authenticated users. Guest
+locale remains session-only. New registrations initialize `preferred_locale`
+from the active locale used during registration.
+
+Phase 3 draft and protected-preview behavior remains unchanged: locale changes
+do not clear the actor-scoped draft, temporary photo session, or restored
+previews. Agent profile enrichment, soft delete, and broader UI work remain
+deferred.

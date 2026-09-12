@@ -12,6 +12,8 @@ use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StaffExaminationController;
 use App\Http\Controllers\TemporaryPhotoPreviewController;
+use App\Services\LocaleService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [ExaminationController::class, 'root'])->name('home');
@@ -106,13 +108,14 @@ Route::post('/photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}/com
 Route::delete('/photo-upload-sessions/{sessionPublicId}/photos/{photoPublicId}', [PhotoUploadController::class, 'destroy'])
     ->name('photo-upload-sessions.photos.destroy');
 
-Route::get('/language/{locale}', function (string $locale) {
-    abort_unless(
-        in_array($locale, ['ms', 'en'], true),
-        404
-    );
+Route::get('/language/{locale}', function (string $locale, Request $request, LocaleService $locales) {
+    abort_unless($locales->isSupported($locale), 404);
 
     session(['locale' => $locale]);
+
+    if ($request->user()) {
+        $locales->persist($request->user(), $locale);
+    }
 
     return back();
 })->name('language.switch');

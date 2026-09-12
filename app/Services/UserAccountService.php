@@ -13,7 +13,7 @@ final class UserAccountService
     /**
      * @param  array{name: string, username: string, email: ?string, password: string}  $attributes
      */
-    public function register(array $attributes): User
+    public function register(array $attributes, string $preferredLocale = 'ms'): User
     {
         $user = new User;
         $user->name = $attributes['name'];
@@ -22,6 +22,7 @@ final class UserAccountService
         $user->password = $attributes['password'];
         $user->role = UserRole::Agent;
         $user->is_active = true;
+        $user->preferred_locale = $preferredLocale;
         $user->save();
 
         return $user;

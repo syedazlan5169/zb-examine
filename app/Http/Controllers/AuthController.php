@@ -18,7 +18,7 @@ class AuthController extends Controller
 
     public function store(LoginRequest $request, RoleHomeResolver $roleHomeResolver): RedirectResponse
     {
-        if (! Auth::attempt($request->credentials())) {
+        if (! Auth::attempt($request->credentials(), $request->remember())) {
             return back()
                 ->withErrors(['username' => __('auth.failed')])
                 ->onlyInput('username');

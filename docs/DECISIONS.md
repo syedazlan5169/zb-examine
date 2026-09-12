@@ -241,6 +241,25 @@ Blob URL, and uses the existing preview cleanup pathways. No image is re-uploade
 no object is made public, and no storage path or presigned URL is persisted in
 browser draft state.
 
+## D032 — Phase 4 Remember Me and Authenticated Locale Preference
+
+Remember Me uses Laravel's native authentication behavior: the login request
+passes a validated boolean to `Auth::attempt($credentials, $remember)`, which
+uses the existing `users.remember_token` column. No custom credentials, tokens,
+cookies, or browser storage are introduced. Existing logout, inactive-user,
+password-change, Admin-reset, session-regeneration, and session-invalidation
+behavior remains authoritative.
+
+The supported locale set remains exactly `ms` and `en`. Locale resolution is
+centralized: guests use the session locale then the application default;
+authenticated users use supported `users.preferred_locale` then the application
+default. An authenticated User preference wins over a stale guest session value
+after login. An explicit locale switch validates the allowlist, updates the
+current session, and persists `preferred_locale` only for authenticated users.
+Guest locale remains session-only. Registration initializes the new Agent's
+preference from the active guest locale. Locale switching does not clear the
+Phase 3 actor-scoped draft or temporary photo preview/session state.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.

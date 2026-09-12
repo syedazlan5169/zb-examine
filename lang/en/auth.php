@@ -4,6 +4,7 @@ return [
     'login' => 'Log in',
     'username' => 'Username',
     'password' => 'Password',
+    'remember' => 'Remember me',
     'sign_in' => 'Sign in',
     'logout' => 'Log out',
     'failed' => 'The provided credentials are invalid.',

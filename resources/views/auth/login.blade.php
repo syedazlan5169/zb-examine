@@ -48,6 +48,11 @@
                 @enderror
             </div>
 
+            <label for="remember" class="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" name="remember" id="remember" value="1" @checked(old('remember')) class="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500">
+                {{ __('auth.remember') }}
+            </label>
+
             <button type="submit" class="w-full rounded-lg bg-gray-900 px-4 py-3 text-base font-semibold text-white hover:bg-gray-700">
                 {{ __('auth.sign_in') }}
             </button>

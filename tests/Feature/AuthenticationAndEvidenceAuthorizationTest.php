@@ -9,6 +9,7 @@ use App\Models\PhotoUploadSession;
 use App\Models\User;
 use App\Policies\ExaminationPhotoPolicy;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
 
@@ -58,6 +59,46 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
         $response->assertRedirect(route('examinations.create'));
         $this->assertAuthenticatedAs($user);
         $this->assertNotSame($sessionId, $this->app['session']->getId());
+    }
+
+    public function test_login_page_renders_remember_me_checkbox(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('name="remember"', false)
+            ->assertSee(__('auth.remember'));
+    }
+
+    public function test_login_without_remember_me_does_not_issue_a_remember_cookie(): void
+    {
+        $user = User::factory()->agent()->create([
+            'username' => 'agent-no-remember',
+            'password' => 'correct-password',
+        ]);
+
+        $this->post(route('auth.login.store'), [
+            'username' => $user->username,
+            'password' => 'correct-password',
+        ])->assertRedirect(route('examinations.create'))
+            ->assertCookieMissing(Auth::getRecallerName());
+    }
+
+    public function test_login_with_remember_me_issues_standard_remember_cookie_and_token(): void
+    {
+        $user = User::factory()->agent()->create([
+            'username' => 'agent-remember',
+            'password' => 'correct-password',
+            'remember_token' => null,
+        ]);
+
+        $this->post(route('auth.login.store'), [
+            'username' => $user->username,
+            'password' => 'correct-password',
+            'remember' => '1',
+        ])->assertRedirect(route('examinations.create'))
+            ->assertCookie(Auth::getRecallerName());
+
+        $this->assertNotNull($user->fresh()->remember_token);
     }
 
     public function test_officer_login_uses_the_examinations_home(): void

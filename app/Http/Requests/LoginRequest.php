@@ -16,6 +16,7 @@ class LoginRequest extends FormRequest
     {
         $this->merge([
             'username' => UserAccountRules::normalizeUsername((string) $this->input('username', '')),
+            'remember' => $this->boolean('remember'),
         ]);
     }
 
@@ -24,6 +25,7 @@ class LoginRequest extends FormRequest
         return [
             'username' => UserAccountRules::username(),
             'password' => ['required', 'string'],
+            'remember' => ['boolean'],
         ];
     }
 
@@ -37,5 +39,10 @@ class LoginRequest extends FormRequest
             'password' => $this->validated('password'),
             'is_active' => true,
         ];
+    }
+
+    public function remember(): bool
+    {
+        return $this->boolean('remember');
     }
 }

@@ -143,7 +143,7 @@ class MonthlyReportTest extends TestCase
             ->assertSee(__('reports.summary.total_submissions'));
 
         $this->withSession(['locale' => 'en'])
-            ->actingAs(User::factory()->officer()->create())
+            ->actingAs(User::factory()->officer()->create(['preferred_locale' => 'en']))
             ->get(route('reports.index', ['year' => 2026, 'month' => 9]))
             ->assertSee('Reports')
             ->assertSee('Total Submissions');
