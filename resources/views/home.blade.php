@@ -3,25 +3,27 @@
 @section('title', __('home.title').' — '.__('app.name'))
 
 @section('content')
-    <div class="mx-auto max-w-xl text-center">
-        <p class="text-sm font-semibold uppercase tracking-wide text-gray-600">{{ __('app.name') }}</p>
-        <h1 class="mt-3 text-2xl font-bold sm:text-3xl">{{ __('home.title') }}</h1>
-        <p class="mx-auto mt-3 max-w-lg text-sm leading-6 text-gray-600">{{ __('home.description') }}</p>
+    <div class="mx-auto max-w-2xl">
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm sm:p-10">
+        <p class="text-sm font-semibold uppercase tracking-wide text-gray-500">{{ __('app.name') }}</p>
+        <h1 class="mt-3 max-w-xl text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">{{ __('home.title') }}</h1>
+        <p class="mt-4 max-w-xl text-base leading-7 text-gray-600">{{ __('home.description') }}</p>
 
-        <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <a href="{{ route('examinations.create') }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-gray-900 px-5 py-3 text-base font-semibold text-white hover:bg-gray-800 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <x-ui.button href="{{ route('examinations.create') }}" class="sm:px-6">
                 {{ __('home.new_submission') }}
-            </a>
-            <a href="{{ route('login') }}" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3 text-base font-semibold text-gray-900 hover:bg-gray-50 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900">
+            </x-ui.button>
+            <x-ui.button href="{{ route('login') }}" variant="secondary">
                 {{ __('auth.login') }}
-            </a>
+            </x-ui.button>
         </div>
 
-        <p class="mt-6 text-sm text-gray-600">
+        <p class="mt-6 border-t border-gray-200 pt-5 text-sm text-gray-600">
             {{ __('home.existing_account') }}
             <a href="{{ route('register') }}" class="font-semibold text-gray-900 underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 {{ __('home.register') }}
             </a>
         </p>
+        </div>
     </div>
 @endsection

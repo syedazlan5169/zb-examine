@@ -15,19 +15,17 @@
         ];
     @endphp
 
-    <h1 class="text-2xl font-bold">{{ __('examination.title') }}</h1>
-    <p class="mt-1 mb-6 text-sm text-gray-600">{{ __('app.name') }}</p>
+    <div class="mb-6">
+        <p class="text-sm font-semibold uppercase tracking-wide text-gray-500">{{ __('app.name') }}</p>
+        <h1 class="mt-2 text-2xl font-bold tracking-tight text-gray-950 sm:text-3xl">{{ __('examination.title') }}</h1>
+    </div>
 
     @if (session('submission_error'))
-        <div role="alert" class="mb-6 rounded-lg border-2 border-red-600 bg-red-50 px-4 py-3 text-red-800">
-            <p class="font-semibold">{{ session('submission_error') }}</p>
-        </div>
+        <x-ui.alert type="error" class="mb-6">{{ session('submission_error') }}</x-ui.alert>
     @endif
 
     @if ($errors->any())
-        <div role="alert" class="mb-6 rounded-lg border-2 border-red-600 bg-red-50 px-4 py-3 text-red-800">
-            <p class="font-semibold">{{ __('examination.errors.validation_summary') }}</p>
-        </div>
+        <x-ui.alert type="error" class="mb-6">{{ __('examination.errors.validation_summary') }}</x-ui.alert>
     @endif
 
     <form
@@ -42,12 +40,13 @@
         data-draft-saved-label="{{ __('examination.draft.saved') }}"
         data-draft-restored-label="{{ __('examination.draft.restored') }}"
         data-draft-cleared-label="{{ __('examination.draft.cleared') }}"
+        class="space-y-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
         novalidate
     >
         @csrf
 
-        <section class="mb-8">
-            <h2 class="mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
+        <section>
+            <h2 class="mb-5 border-b border-gray-200 pb-3 text-lg font-bold text-gray-950">
                 {{ __('examination.sections.agent_information') }}
             </h2>
 
@@ -60,8 +59,8 @@
             </div>
         </section>
 
-        <section class="mb-8">
-            <h2 class="mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
+        <section>
+            <h2 class="mb-5 border-b border-gray-200 pb-3 text-lg font-bold text-gray-950">
                 {{ __('examination.sections.examination_information') }}
             </h2>
 
@@ -118,7 +117,7 @@
 
                     <div id="customs-form-numbers-list" class="space-y-2">
                         @foreach ($customsFormNumbersOld as $index => $customsFormNumberValue)
-                            <div data-role="customs-form-number-row" class="flex gap-2">
+                            <div data-role="customs-form-number-row" class="flex flex-col gap-2 sm:flex-row sm:items-start">
                                 <div class="flex-1">
                                     <input
                                         type="text"
@@ -139,7 +138,7 @@
                                     type="button"
                                     data-action="remove-customs-form-number"
                                     {{ $index === 0 ? 'hidden' : '' }}
-                                    class="shrink-0 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+                                    class="min-h-11 shrink-0 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sm:min-h-0"
                                 >
                                     {{ __('examination.customs_form_numbers.remove') }}
                                 </button>
@@ -209,8 +208,8 @@
             </div>
         </section>
 
-        <section class="mb-8">
-            <h2 class="mb-4 border-b border-gray-300 pb-2 text-lg font-semibold">
+        <section>
+            <h2 class="mb-5 border-b border-gray-200 pb-3 text-lg font-bold text-gray-950">
                 {{ __('examination_photos.section_title') }}
             </h2>
 
@@ -286,23 +285,15 @@
             <input type="hidden" name="photo_upload_token" id="photo_upload_token" />
         </section>
 
-        <button
-            type="submit"
-            id="examination-submit"
-            class="w-full rounded-lg bg-gray-900 px-6 py-4 text-lg font-semibold text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <x-ui.button type="submit" id="examination-submit" class="w-full py-4 text-base sm:text-lg">
             {{ __('examination.actions.submit') }}
-        </button>
+        </x-ui.button>
 
         <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
             <p id="examination-draft-status" role="status" aria-live="polite" class="min-h-5 text-sm text-gray-600"></p>
-            <button
-                type="button"
-                id="examination-draft-clear"
-                class="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900"
-            >
+            <x-ui.button type="button" variant="ghost" id="examination-draft-clear">
                 {{ __('examination.draft.clear') }}
-            </button>
+            </x-ui.button>
         </div>
     </form>
 @endsection

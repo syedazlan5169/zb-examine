@@ -322,6 +322,22 @@ without adding unnecessary ARIA. No frontend framework or UI dependency is
 introduced. Phase 6 modal and Phase 2 mobile drawer behavior are preserved;
 page-by-page refinement remains Phase 8.
 
+## D036 — Phase 8A Entry, Authentication, and Submission UI Polish
+
+Phase 8A is visual refinement only for the Guest landing page, Login, Register,
+New Submission, and submission success page. These surfaces use the Phase 7
+Blade/Tailwind primitives with a restrained operational hierarchy: compact
+identity, one primary action, moderate surfaces, clear section dividers,
+comfortable mobile controls, and minimal decoration.
+
+No authentication, registration, routing, submission, draft, photo-upload,
+profile-enrichment, or locale business logic changed. Existing JavaScript hooks,
+field names, old-input precedence, Remember Me, actor-scoped drafts, protected
+photo previews, and success-page draft clearing remain intact. Customs Form
+Number rows stack responsively without changing their DOM names or ordering.
+Staff workspace, Agent history, Reports, My Account, User Management, mobile
+Examination cards, and broader page redesign remain deferred to later slices.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.

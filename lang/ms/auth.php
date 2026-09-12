@@ -10,6 +10,7 @@ return [
     'failed' => 'Maklumat kelayakan yang diberikan tidak sah.',
     'register' => 'Daftar',
     'no_account' => 'Belum mempunyai akaun?',
+    'have_account' => 'Sudah mempunyai akaun?',
     'inactive' => 'Akaun ini tidak aktif. Sila hubungi pentadbir.',
     'registration' => 'Cipta akaun',
     'registered' => 'Akaun berjaya dicipta.',

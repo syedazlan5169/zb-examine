@@ -3,9 +3,9 @@
 @section('title', __('auth.login').' — '.__('app.name'))
 
 @section('content')
-    <div class="mx-auto max-w-md">
-        <h1 class="text-2xl font-bold">{{ __('auth.login') }}</h1>
-        <p class="mt-1 text-sm text-gray-600">{{ __('app.name') }}</p>
+    <x-ui.card class="mx-auto max-w-md shadow-sm">
+        <p class="text-sm font-semibold uppercase tracking-wide text-gray-500">{{ __('app.name') }}</p>
+        <h1 class="mt-2 text-2xl font-bold text-gray-950">{{ __('auth.login') }}</h1>
 
         <form method="POST" action="{{ route('auth.login.store') }}" class="mt-6 space-y-5">
             @csrf
@@ -53,14 +53,14 @@
                 {{ __('auth.remember') }}
             </label>
 
-            <button type="submit" class="w-full rounded-lg bg-gray-900 px-4 py-3 text-base font-semibold text-white hover:bg-gray-700">
+            <x-ui.button type="submit" class="w-full">
                 {{ __('auth.sign_in') }}
-            </button>
+            </x-ui.button>
         </form>
 
         <p class="mt-5 text-center text-sm text-gray-600">
             {{ __('auth.no_account') }}
             <a href="{{ route('register') }}" class="font-semibold text-gray-900 underline">{{ __('auth.register') }}</a>
         </p>
-    </div>
+    </x-ui.card>
 @endsection

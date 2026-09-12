@@ -1308,3 +1308,22 @@ all user-facing copy remains translated.
 Phase 6's delete modal, Phase 2's navigation drawer, Phase 3's draft/photo
 resilience, reports, exports, and business logic remain functionally unchanged.
 This phase does not constitute a page-by-page redesign.
+
+## Phase 8A — Entry, Authentication, and Submission UI Polish
+
+The Guest landing page now uses a restrained operational identity surface with
+the official system name, a dominant New Submission action, and secondary Login
+and Register paths. Login and Register share a compact card hierarchy,
+translated cross-links, comfortable controls, and the existing Remember Me,
+validation, locale, autocomplete, and redirect behavior.
+
+The New Submission page now presents one primary surface with clearer section
+rhythm, stronger headings, shared alerts/buttons, and responsive Customs Form
+Number rows that stack naturally on narrow screens. Existing form names, order,
+conditional behavior, draft metadata, photo manager hooks, validation, and
+submission logic remain unchanged. The success page uses the same restrained
+language while preserving the submission-number and draft-clearing markers.
+
+Later Phase 8 slices remain responsible for staff workspace, Agent history,
+Reports, My Account, User Management, mobile Examination cards, and broader
+page-specific redesign.

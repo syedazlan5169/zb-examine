@@ -3,33 +3,32 @@
 @section('title', __('examination.success.heading').' — '.__('app.name'))
 
 @section('content')
-    <div class="rounded-xl border-2 border-green-600 bg-green-50 px-6 py-8 text-center">
-        <h1 class="text-2xl font-bold text-green-900">{{ __('examination.success.heading') }}</h1>
-        <p class="mt-2 text-green-800">{{ __('examination.success.message') }}</p>
+    <div class="rounded-lg border border-green-300 bg-green-50 px-5 py-8 text-center shadow-sm sm:px-8">
+        <p class="text-sm font-semibold uppercase tracking-wide text-green-700">{{ __('app.name') }}</p>
+        <h1 class="mt-2 text-2xl font-bold text-green-950">{{ __('examination.success.heading') }}</h1>
+        <p class="mx-auto mt-3 max-w-lg text-green-800">{{ __('examination.success.message') }}</p>
 
         <p class="mt-6 text-sm font-semibold tracking-wide text-green-700 uppercase">
             {{ __('examination.success.submission_number_label') }}
         </p>
-        <p id="submission-number" data-draft-actor="{{ auth()->check() ? 'user-'.auth()->id() : 'guest' }}" class="mt-1 text-4xl font-extrabold break-all text-green-900">
+        <p id="submission-number" data-draft-actor="{{ auth()->check() ? 'user-'.auth()->id() : 'guest' }}" class="mt-2 break-all text-3xl font-extrabold tracking-tight text-green-950 sm:text-4xl">
             {{ $submissionNo }}
         </p>
 
-        <button
+        <x-ui.button
             type="button"
             id="copy-submission-number"
             data-copy-target="submission-number"
             data-default-label="{{ __('examination.actions.copy_number') }}"
             data-copied-label="{{ __('examination.actions.copied') }}"
-            class="mt-4 rounded-lg border-2 border-green-700 px-4 py-2 text-sm font-medium text-green-800 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-green-900"
+            variant="secondary"
+            class="mt-4 border-green-700 text-green-800 hover:bg-green-100 focus:ring-green-900"
         >
             {{ __('examination.actions.copy_number') }}
-        </button>
+        </x-ui.button>
     </div>
 
-    <a
-        href="{{ route('examinations.create') }}"
-        class="mt-8 block w-full rounded-lg bg-gray-900 px-6 py-4 text-center text-lg font-semibold text-white focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900"
-    >
+    <x-ui.button href="{{ route('examinations.create') }}" class="mt-6 w-full py-4 text-base sm:text-lg">
         {{ __('examination.actions.new_submission') }}
-    </a>
+    </x-ui.button>
 @endsection

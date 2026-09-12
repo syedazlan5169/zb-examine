@@ -12,6 +12,7 @@ return [
     'throttle' => 'Too many login attempts. Please try again in :seconds seconds.',
     'register' => 'Register',
     'no_account' => "Don't have an account?",
+    'have_account' => 'Already have an account?',
     'inactive' => 'This account is inactive. Please contact an administrator.',
     'registration' => 'Create account',
     'registered' => 'Account created successfully.',
