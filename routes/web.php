@@ -13,7 +13,8 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StaffExaminationController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [ExaminationController::class, 'create'])->name('examinations.create');
+Route::get('/', [ExaminationController::class, 'root'])->name('home');
+Route::get('/examinations/create', [ExaminationController::class, 'create'])->name('examinations.create');
 Route::post('/examinations', [ExaminationController::class, 'store'])->name('examinations.store');
 Route::get('/examinations/success', [ExaminationController::class, 'success'])->name('examinations.success');
 Route::middleware(['auth', 'active'])->group(function () {

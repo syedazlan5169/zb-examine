@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\RegistrationRequest;
+use App\Services\RoleHomeResolver;
 use App\Services\UserAccountService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -15,13 +16,13 @@ class RegistrationController extends Controller
         return view('auth.register');
     }
 
-    public function store(RegistrationRequest $request, UserAccountService $service): RedirectResponse
+    public function store(RegistrationRequest $request, UserAccountService $service, RoleHomeResolver $roleHomeResolver): RedirectResponse
     {
         $user = $service->register($request->safe()->only(['name', 'username', 'email', 'password']));
 
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('examinations.create'));
+        return redirect()->intended(route($roleHomeResolver->routeName($user)));
     }
 }

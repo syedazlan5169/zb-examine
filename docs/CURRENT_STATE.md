@@ -1124,3 +1124,29 @@ The overall photo-upload architecture is approved and integrated end-to-end (see
 Do not start implementing these blindly from assumptions.
 
 The existing Google Form should be mapped and reviewed so the new application preserves required operational fields while improving weak parts of the previous workflow.
+
+## Phase 1 — Routing, Landing Page and Role Homes
+
+The root route is now authentication-aware. Guests receive a small localized
+landing page at `/` with the official product name, New Submission, Login, and
+Register actions. Authenticated Agents are redirected to the dedicated
+Examination Submission form at `/examinations/create`; Officers and Admins are
+redirected to `/examinations`.
+
+The named `examinations.create` route now points to `GET /examinations/create`.
+The public mutation contract remains unchanged: `POST /examinations`,
+`GET /examinations/success`, and every temporary/direct photo-upload endpoint
+retain their existing paths and names.
+
+Default authenticated destinations are centralized in
+`App\Services\RoleHomeResolver` and are reused by the root endpoint, login
+success flow, registration success flow, and Laravel's authenticated-user
+redirect from guest-only routes. Valid intended destinations continue to be
+handled by Laravel's normal `redirect()->intended(...)` behavior; when there is
+no intended destination, the role home is used.
+
+The shared desktop navigation now exposes New Submission to guests and all
+authenticated roles. The mobile hamburger/drawer remains deferred to the next
+phase. Draft persistence, photo preview restoration, Remember Me, locale
+preference persistence, profile enrichment, soft deletes, and broader UI
+refinement remain future work.

@@ -27,23 +27,57 @@ class ExaminationSubmissionFormTest extends TestCase
 
     public function test_guest_can_view_the_form(): void
     {
-        $this->get('/')->assertOk();
+        $this->get(route('examinations.create'))->assertOk();
+    }
+
+    public function test_guest_root_renders_the_landing_page(): void
+    {
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee(__('home.new_submission'))
+            ->assertSee(__('auth.login'))
+            ->assertSee(__('home.register'));
+    }
+
+    public function test_landing_page_renders_in_english(): void
+    {
+        $this->get('/language/en');
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee('Examine Registration System')
+            ->assertSee('New Submission')
+            ->assertSee(__('auth.login'))
+            ->assertSee('Register');
+    }
+
+    public function test_new_submission_navigation_is_visible_to_guests_and_all_roles(): void
+    {
+        $newSubmissionLink = 'href="'.route('examinations.create').'"';
+
+        $this->get(route('home'))->assertSee($newSubmissionLink, false);
+
+        foreach ([User::factory()->agent()->create(), User::factory()->officer()->create(), User::factory()->admin()->create()] as $user) {
+            $this->actingAs($user)
+                ->get(route('examinations.create'))
+                ->assertSee($newSubmissionLink, false);
+        }
     }
 
     public function test_lampiran_a_uses_the_exact_canonical_malay_term_in_both_locales(): void
     {
-        $this->get('/')->assertOk()->assertSee('LAMPIRAN A (TARIK BALIK)', false);
+        $this->get(route('examinations.create'))->assertOk()->assertSee('LAMPIRAN A (TARIK BALIK)', false);
 
         $this->get('/language/en');
-        $this->get('/')->assertOk()->assertSee('LAMPIRAN A (TARIK BALIK)', false);
+        $this->get(route('examinations.create'))->assertOk()->assertSee('LAMPIRAN A (TARIK BALIK)', false);
 
-        $this->assertStringNotContainsString('Lampiran A (Tarik Balik)', $this->get('/')->getContent());
-        $this->assertStringNotContainsString('Attachment A', $this->get('/')->getContent());
+        $this->assertStringNotContainsString('Lampiran A (Tarik Balik)', $this->get(route('examinations.create'))->getContent());
+        $this->assertStringNotContainsString('Attachment A', $this->get(route('examinations.create'))->getContent());
     }
 
     public function test_locale_switcher_is_compact_my_en(): void
     {
-        $response = $this->get('/');
+        $response = $this->get(route('examinations.create'));
 
         $response->assertOk()->assertSee('MY', false)->assertSee('EN', false);
         $response->assertDontSee('Bahasa Melayu');
@@ -51,7 +85,7 @@ class ExaminationSubmissionFormTest extends TestCase
 
     public function test_real_form_renders_one_repeatable_customs_form_number_input_initially(): void
     {
-        $response = $this->get('/');
+        $response = $this->get(route('examinations.create'));
 
         $response->assertOk();
         $response->assertSee('name="customs_form_numbers[]"', false);
@@ -63,7 +97,7 @@ class ExaminationSubmissionFormTest extends TestCase
 
     public function test_malay_is_default_and_uses_the_official_product_name(): void
     {
-        $this->get('/')
+        $this->get(route('examinations.create'))
             ->assertOk()
             ->assertSee('Sistem Daftar Pemeriksaan')
             ->assertSee('Pendaftaran Pemeriksaan')
@@ -75,7 +109,7 @@ class ExaminationSubmissionFormTest extends TestCase
     {
         $this->get('/language/en');
 
-        $this->get('/')
+        $this->get(route('examinations.create'))
             ->assertOk()
             ->assertSee('Examine Registration System')
             ->assertSee('Examination Submission')
@@ -84,18 +118,18 @@ class ExaminationSubmissionFormTest extends TestCase
 
     public function test_controlled_business_values_use_the_canonical_malay_business_vocabulary_in_both_locales(): void
     {
-        $this->get('/')->assertOk()->assertSee('TERMINAL GATE KONTENA')->assertSee('FCL')->assertSee('K1');
+        $this->get(route('examinations.create'))->assertOk()->assertSee('TERMINAL GATE KONTENA')->assertSee('FCL')->assertSee('K1');
 
         $this->get('/language/en');
-        $this->get('/')
+        $this->get(route('examinations.create'))
             ->assertOk()
             ->assertSee('TERMINAL GATE KONTENA')
             ->assertSee('FCL')
             ->assertSee('K1')
             ->assertSee('Examination Submission');
 
-        $this->assertStringNotContainsString('Container Gate Terminal', $this->get('/')->getContent());
-        $this->assertStringNotContainsString('Container Gate Terminal', $this->get('/')->getContent());
+        $this->assertStringNotContainsString('Container Gate Terminal', $this->get(route('examinations.create'))->getContent());
+        $this->assertStringNotContainsString('Container Gate Terminal', $this->get(route('examinations.create'))->getContent());
     }
 
     public function test_required_fields_are_rejected(): void
@@ -137,7 +171,9 @@ class ExaminationSubmissionFormTest extends TestCase
 
     public function test_required_field_validation_renders_the_malay_translated_message(): void
     {
-        $response = $this->followingRedirects()->post('/examinations', $this->validPayload(['agent_name' => '']));
+        $response = $this->from(route('examinations.create'))
+            ->followingRedirects()
+            ->post('/examinations', $this->validPayload(['agent_name' => '']));
 
         // Proves validation.required + attributes.agent_name + locale=ms + the error bag + Blade rendering all wire together.
         $response->assertSee('Medan nama ejen wajib diisi.');
@@ -229,7 +265,7 @@ class ExaminationSubmissionFormTest extends TestCase
             ->assertSee($examination->submission_no);
 
         // Starting a new submission clears the previous success state.
-        $this->get('/');
+        $this->get(route('examinations.create'));
         $this->get(route('examinations.success'))->assertRedirect(route('examinations.create'));
     }
 
@@ -312,7 +348,7 @@ class ExaminationSubmissionFormTest extends TestCase
         $this->assertSame(0, Examination::count());
 
         // Old input (aside from the rejected field) is preserved for the next render.
-        $this->get('/')->assertSee('Ali bin Abu');
+        $this->get(route('examinations.create'))->assertSee('Ali bin Abu');
 
         $this->assertSame(
             0,
@@ -340,7 +376,7 @@ class ExaminationSubmissionFormTest extends TestCase
 
         $response->assertSessionHasErrors(['agent_name']);
 
-        $this->get('/')
+        $this->get(route('examinations.create'))
             ->assertSee('value="AAA"', false)
             ->assertSee('value="BBB"', false)
             ->assertSee('value="CCC"', false);
@@ -361,7 +397,7 @@ class ExaminationSubmissionFormTest extends TestCase
             $response->assertSessionHas('submission_error');
             $this->assertSame(0, Examination::count());
 
-            $this->get('/')
+            $this->get(route('examinations.create'))
                 ->assertSee(__('examination.errors.sequence_exhausted'))
                 ->assertDontSee('SubmissionNumberSequenceExhausted', false);
         });
@@ -384,14 +420,14 @@ class ExaminationSubmissionFormTest extends TestCase
         $response->assertSessionHas('submission_error');
         $this->assertSame(0, Examination::count());
 
-        $this->get('/')->assertDontSee('unexpected persistence failure');
+        $this->get(route('examinations.create'))->assertDontSee('unexpected persistence failure');
 
         Exceptions::assertReported(LogicException::class);
     }
 
     public function test_form_renders_double_submit_protection_hooks(): void
     {
-        $this->get('/')
+        $this->get(route('examinations.create'))
             ->assertOk()
             ->assertSee('id="examination-form"', false)
             ->assertSee('id="examination-submit"', false)

@@ -314,7 +314,7 @@ class ExaminationPhotoFinalizationTest extends TestCase
         ]));
 
         $this->get(route('examinations.success'))->assertDontSee($upload->storage_path);
-        $this->get('/')->assertDontSee($upload->storage_path);
+        $this->get(route('examinations.create'))->assertDontSee($upload->storage_path);
     }
 
     public function test_form_request_validation_failure_never_flashes_the_raw_token(): void
@@ -366,7 +366,7 @@ class ExaminationPhotoFinalizationTest extends TestCase
             'photo_upload_token' => 'super-secret-test-token',
         ]));
 
-        $response = $this->get('/');
+        $response = $this->get(route('examinations.create'));
 
         $response->assertOk();
         $response->assertSee('id="photo_upload_token"', false);

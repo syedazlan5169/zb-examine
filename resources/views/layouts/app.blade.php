@@ -15,7 +15,7 @@
     <header class="border-b border-gray-200 bg-white">
         <div class="mx-auto w-full max-w-6xl px-3 py-2 sm:px-6 sm:py-3">
             <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <a href="{{ route('examinations.create') }}" class="text-base font-bold leading-tight sm:text-lg">
+                <a href="{{ route('home') }}" class="text-base font-bold leading-tight sm:text-lg">
                     {{ __('app.name') }}
                 </a>
 
@@ -38,6 +38,9 @@
 
                     <div class="flex flex-wrap items-center gap-2 text-sm font-medium">
                         @auth
+                            <a href="{{ route('examinations.create') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                {{ __('home.new_submission') }}
+                            </a>
                             <a href="{{ route('profile.edit') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                                 {{ __('profile.title') }}
                             </a>
@@ -71,6 +74,9 @@
                                 </button>
                             </form>
                         @else
+                            <a href="{{ route('examinations.create') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                {{ __('home.new_submission') }}
+                            </a>
                             <a href="{{ route('login') }}" class="rounded-md px-2.5 py-2 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                                 {{ __('auth.login') }}
                             </a>

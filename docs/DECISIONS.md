@@ -148,6 +148,31 @@ Before every physical deletion, cleanup checks `examination_photos` for finalize
 
 This document records important decisions that should not be casually changed by future development sessions or AI agents without understanding the reason behind them.
 
+## D027 — Phase 1 Routing and Role Homes
+
+The root URL `/` is a role-aware entry point rather than the Examination
+Submission form. Guests see a concise landing page. Authenticated Agents go to
+`/examinations/create`; Officers and Admins go to `/examinations`.
+
+The Examination Submission form has a dedicated GET route,
+`examinations.create` at `/examinations/create`. The existing public mutation
+and upload contracts are intentionally preserved: `POST /examinations`,
+`GET /examinations/success`, and all `/photo-upload-sessions/*` endpoints are
+unchanged.
+
+The default authenticated destination is resolved by the small application
+service `App\Services\RoleHomeResolver`. Login and registration use
+`redirect()->intended(...)` with the resolver's role-specific fallback, while
+Laravel's `guest` middleware is configured to redirect already-authenticated
+users through the same resolver. Route authorization remains authoritative for
+intended destinations; this decision does not grant access to unauthorized
+roles.
+
+New Submission is visible in the existing shared desktop navigation for guests,
+Agents, Officers, and Admins. The mobile drawer is deliberately deferred to a
+later phase. Official product names remain `Sistem Daftar Pemeriksaan` and
+`Examine Registration System`.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.

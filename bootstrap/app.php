@@ -5,6 +5,7 @@ use App\Exceptions\PhotoUploadSessionInvalid;
 use App\Exceptions\PhotoUploadStorageException;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SetLocale;
+use App\Services\RoleHomeResolver;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
         ]);
+        $middleware->redirectUsersTo(function (Request $request): string {
+            return route(app(RoleHomeResolver::class)->routeName($request->user()));
+        });
         $middleware->trustProxies(
             at: ['REMOTE_ADDR'],
             headers: Request::HEADER_X_FORWARDED_FOR

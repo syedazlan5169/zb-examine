@@ -210,7 +210,7 @@ class AgentProfileTest extends TestCase
             'station_code' => 'ST-SAVED',
         ]);
 
-        $response = $this->actingAs($user)->get('/');
+        $response = $this->actingAs($user)->get(route('examinations.create'));
 
         $response->assertOk();
         $response->assertSee('value="Saved Agent Name"', false);
@@ -230,7 +230,7 @@ class AgentProfileTest extends TestCase
             'station_code' => 'ST-SAVED',
         ]);
 
-        $response = $this->get('/');
+        $response = $this->get(route('examinations.create'));
 
         $response->assertOk();
         $response->assertDontSee('value="Saved Agent Name"', false);
@@ -249,7 +249,7 @@ class AgentProfileTest extends TestCase
         ]);
 
         foreach ([User::factory()->officer()->create(), User::factory()->admin()->create()] as $user) {
-            $response = $this->actingAs($user)->get('/');
+            $response = $this->actingAs($user)->get(route('examinations.create'));
 
             $response->assertOk();
             $response->assertDontSee('value="Saved Agent Name"', false);
@@ -285,7 +285,7 @@ class AgentProfileTest extends TestCase
             ->post('/examinations', $invalidPayload)
             ->assertSessionHasErrors(['customs_form_numbers.1']);
 
-        $response = $this->actingAs($user)->get('/');
+        $response = $this->actingAs($user)->get(route('examinations.create'));
 
         $response->assertOk();
         $response->assertSee('value="Typed Agent"', false);

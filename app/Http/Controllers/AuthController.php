@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
+use App\Services\RoleHomeResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +16,7 @@ class AuthController extends Controller
         return view('auth.login');
     }
 
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request, RoleHomeResolver $roleHomeResolver): RedirectResponse
     {
         if (! Auth::attempt($request->credentials())) {
             return back()
@@ -25,7 +26,7 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('examinations.create'));
+        return redirect()->intended(route($roleHomeResolver->routeName($request->user())));
     }
 
     public function destroy(Request $request): RedirectResponse
@@ -35,6 +36,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('examinations.create');
+        return redirect()->route('home');
     }
 }

@@ -41,7 +41,26 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
             ->assertDontSee('Email');
     }
 
-    public function test_valid_username_and_password_authenticate_and_regenerate_the_session(): void
+    public function test_agent_login_uses_the_new_submission_home(): void
+    {
+        $user = User::factory()->agent()->create([
+            'username' => 'agent-one',
+            'email' => null,
+            'password' => 'correct-password',
+        ]);
+        $sessionId = $this->app['session']->getId();
+
+        $response = $this->post(route('auth.login.store'), [
+            'username' => 'agent-one',
+            'password' => 'correct-password',
+        ]);
+
+        $response->assertRedirect(route('examinations.create'));
+        $this->assertAuthenticatedAs($user);
+        $this->assertNotSame($sessionId, $this->app['session']->getId());
+    }
+
+    public function test_officer_login_uses_the_examinations_home(): void
     {
         $user = User::factory()->officer()->create([
             'username' => 'officer-one',
@@ -55,9 +74,30 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
             'password' => 'correct-password',
         ]);
 
-        $response->assertRedirect(route('examinations.create'));
+        $response->assertRedirect(route('examinations.index'));
         $this->assertAuthenticatedAs($user);
         $this->assertNotSame($sessionId, $this->app['session']->getId());
+    }
+
+    public function test_authenticated_root_uses_each_role_home(): void
+    {
+        $this->actingAs(User::factory()->agent()->create())
+            ->get(route('home'))
+            ->assertRedirect(route('examinations.create'));
+
+        $this->actingAs(User::factory()->officer()->create())
+            ->get(route('home'))
+            ->assertRedirect(route('examinations.index'));
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('home'))
+            ->assertRedirect(route('examinations.index'));
+    }
+
+    public function test_literal_form_and_success_routes_are_not_captured_by_examination_binding(): void
+    {
+        $this->get(route('examinations.create'))->assertOk();
+        $this->get(route('examinations.success'))->assertRedirect(route('examinations.create'));
     }
 
     public function test_authenticated_users_are_redirected_away_from_login(): void
@@ -65,7 +105,7 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
         $this->actingAs(User::factory()->officer()->create());
 
         $this->get(route('login'))
-            ->assertRedirect(route('examinations.create'));
+            ->assertRedirect(route('examinations.index'));
     }
 
     public function test_authenticated_users_cannot_submit_login_again(): void
@@ -75,7 +115,7 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
         $this->post(route('auth.login.store'), [
             'username' => 'another-user',
             'password' => 'another-password',
-        ])->assertRedirect(route('examinations.create'));
+        ])->assertRedirect(route('examinations.index'));
     }
 
     public function test_username_is_normalized_before_authentication(): void
@@ -89,7 +129,7 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
         $this->post(route('auth.login.store'), [
             'username' => '  Officer.One  ',
             'password' => 'correct-password',
-        ])->assertRedirect(route('examinations.create'));
+        ])->assertRedirect(route('examinations.index'));
 
         $this->assertAuthenticatedAs($user);
     }
@@ -151,7 +191,7 @@ class AuthenticationAndEvidenceAuthorizationTest extends TestCase
 
         $response = $this->post(route('auth.logout'));
 
-        $response->assertRedirect(route('examinations.create'));
+        $response->assertRedirect(route('home'));
         $this->assertGuest();
     }
 

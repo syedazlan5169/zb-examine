@@ -32,7 +32,7 @@ class PhotoUploadWorkbenchTest extends TestCase
         $workbench->assertOk();
         $workbench->assertSee('csrf-token', false);
 
-        $realForm = $this->get('/');
+        $realForm = $this->get(route('examinations.create'));
         $realForm->assertOk();
 
         $content = $realForm->getContent();

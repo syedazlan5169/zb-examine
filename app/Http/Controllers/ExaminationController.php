@@ -11,6 +11,7 @@ use App\Exceptions\PhotoUploadSessionInvalid;
 use App\Exceptions\SubmissionNumberSequenceExhausted;
 use App\Http\Requests\ExaminationSubmissionRequest;
 use App\Services\ExaminationSubmissionService;
+use App\Services\RoleHomeResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -35,6 +36,15 @@ class ExaminationController extends Controller
         'photo_count_invalid',
         'unverified_photo_pending',
     ];
+
+    public function root(RoleHomeResolver $roleHomeResolver): View|RedirectResponse
+    {
+        if (! auth()->check()) {
+            return view('home');
+        }
+
+        return redirect()->route($roleHomeResolver->routeName(auth()->user()));
+    }
 
     public function create(): View
     {
