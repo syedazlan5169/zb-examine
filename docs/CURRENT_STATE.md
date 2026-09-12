@@ -1172,3 +1172,26 @@ scroll while open, and restores focus to the trigger when closed. The drawer
 uses native hidden semantics so its controls are not keyboard-focusable while
 closed. Locale presentation remains session-based; locale persistence is still
 deferred to Phase 4.
+
+## Phase 2B — Examination Browsing UX
+
+The staff Examination workspace keeps its existing shared Eloquent query and
+25-row server pagination for desktop/MacBook browsing. Below the existing `lg`
+breakpoint, a small vanilla-JavaScript presentation paginator shows ten rows at
+a time and hands off to the server paginator when the current server page is
+exhausted. Search, Today filter, and page state are preserved in generated
+links.
+
+Staff listing now defaults to `today=1`. Today means the half-open operational
+day in `Asia/Kuala_Lumpur`, using `submitted_at` boundaries converted to UTC for
+the database query. `today=0` explicitly includes historical records. A
+complete canonical `ZB-YYMMDD-NNNN` Submission Number search uses an exact
+indexed lookup and bypasses the Today constraint without changing the visible
+checkbox state.
+
+On mobile, selecting a staff list item appends `#examination-details` through a
+small responsive enhancement; desktop links remain normal links without an
+anchor jump. The detail region has the stable `id="examination-details"`.
+Empty Today-only results use distinct localized copy. Mobile card redesign,
+draft persistence, photo preview restoration, and other later phases remain
+deferred.

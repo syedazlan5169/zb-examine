@@ -18,7 +18,7 @@
                 <span class="block truncate">{{ __('app.name') }}</span>
             </a>
 
-            <nav aria-label="{{ __('navigation.primary') }}" class="hidden items-center gap-2 lg:flex">
+            <nav aria-label="{{ __('app.navigation.primary') }}" class="hidden items-center gap-2 lg:flex">
                 @include('layouts.partials.navigation-links', [
                     'linkClass' => 'rounded-md px-2.5 py-2 text-sm font-medium',
                 ])
@@ -29,9 +29,9 @@
                 id="mobile-navigation-trigger"
                 aria-controls="mobile-navigation-drawer"
                 aria-expanded="false"
-                aria-label="{{ __('navigation.open_menu') }}"
-                data-open-label="{{ __('navigation.open_menu') }}"
-                data-close-label="{{ __('navigation.close_menu') }}"
+                aria-label="{{ __('app.navigation.open_menu') }}"
+                data-open-label="{{ __('app.navigation.open_menu') }}"
+                data-close-label="{{ __('app.navigation.close_menu') }}"
                 data-mobile-navigation-trigger
                 class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 lg:hidden"
             >
@@ -54,7 +54,7 @@
                 <h2 id="mobile-navigation-title" class="min-w-0 truncate text-base font-bold">{{ __('app.name') }}</h2>
                 <button
                     type="button"
-                    aria-label="{{ __('navigation.close_menu') }}"
+                    aria-label="{{ __('app.navigation.close_menu') }}"
                     data-mobile-navigation-close
                     class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
@@ -64,7 +64,7 @@
                 </button>
             </div>
 
-            <nav aria-label="{{ __('navigation.primary') }}" class="flex flex-1 flex-col gap-1 p-4 text-sm font-medium">
+            <nav aria-label="{{ __('app.navigation.primary') }}" class="flex flex-1 flex-col gap-1 p-4 text-sm font-medium">
                 @include('layouts.partials.navigation-links', [
                     'linkClass' => 'rounded-md px-3 py-3',
                 ])

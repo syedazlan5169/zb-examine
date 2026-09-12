@@ -42,8 +42,8 @@ class StaffExaminationRetrievalTest extends TestCase
         $examination = Examination::factory()->create();
 
         foreach ([User::factory()->officer()->create(), User::factory()->admin()->create()] as $user) {
-            $this->actingAs($user)->get(route('examinations.index'))->assertOk();
-            $this->actingAs($user)->get(route('examinations.show', $examination))->assertOk();
+            $this->actingAs($user)->get(route('examinations.index', ['today' => '0']))->assertOk();
+            $this->actingAs($user)->get(route('examinations.show', [$examination, 'today' => '0']))->assertOk();
         }
     }
 
@@ -55,13 +55,126 @@ class StaffExaminationRetrievalTest extends TestCase
         $second = Examination::factory()->create(['submission_no' => 'ZB-SECOND', 'submitted_at' => $timestamp]);
         Examination::factory()->count(24)->create();
 
-        $response = $this->actingAs(User::factory()->officer()->create())->get(route('examinations.index'));
+        $response = $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.index', ['today' => '0']));
 
         $response->assertOk();
         $content = $response->getContent();
         $this->assertLessThan(strpos($content, $second->submission_no), strpos($content, $first->submission_no));
         $this->assertStringNotContainsString($older->submission_no, $content);
         $this->assertStringContainsString('page=2', $response->getContent());
+    }
+
+    public function test_today_filter_defaults_to_the_malaysia_business_day(): void
+    {
+        $this->travelTo(Carbon::parse('2026-09-12 12:00:00', 'UTC'));
+
+        $today = Examination::factory()->create([
+            'submission_no' => 'ZB-260912-1000',
+            'submitted_at' => Carbon::parse('2026-09-11 16:00:00', 'UTC'),
+        ]);
+        $yesterday = Examination::factory()->create([
+            'submission_no' => 'ZB-260911-1000',
+            'submitted_at' => Carbon::parse('2026-09-11 15:59:59', 'UTC'),
+        ]);
+        $tomorrow = Examination::factory()->create([
+            'submission_no' => 'ZB-260913-1000',
+            'submitted_at' => Carbon::parse('2026-09-12 16:00:00', 'UTC'),
+        ]);
+
+        $response = $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.index'));
+
+        $response->assertOk()
+            ->assertSee($today->submission_no)
+            ->assertDontSee($yesterday->submission_no)
+            ->assertDontSee($tomorrow->submission_no)
+            ->assertSee(__('examination.staff.today_only'));
+
+        $this->assertMatchesRegularExpression('/<input[^>]+id="today"[^>]+checked[^>]*>/', $response->getContent());
+    }
+
+    public function test_today_zero_includes_historical_examinations(): void
+    {
+        $historical = Examination::factory()->create([
+            'submission_no' => 'ZB-260901-1000',
+            'submitted_at' => Carbon::parse('2026-09-01 00:00:00', 'UTC'),
+        ]);
+
+        $response = $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.index', ['today' => '0']))
+            ->assertOk()
+            ->assertSee($historical->submission_no);
+
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]+id="today"[^>]+checked[^>]*>/', $response->getContent());
+    }
+
+    public function test_partial_submission_number_search_respects_today_filter(): void
+    {
+        $this->travelTo(Carbon::parse('2026-09-12 12:00:00', 'UTC'));
+
+        $today = Examination::factory()->create([
+            'submission_no' => 'ZB-260912-1234',
+            'submitted_at' => Carbon::parse('2026-09-11 16:00:00', 'UTC'),
+        ]);
+        $historical = Examination::factory()->create([
+            'submission_no' => 'ZB-260901-1234',
+            'submitted_at' => Carbon::parse('2026-09-01 00:00:00', 'UTC'),
+        ]);
+
+        $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.index', ['search' => '1234', 'today' => '1']))
+            ->assertOk()
+            ->assertSee($today->submission_no)
+            ->assertDontSee($historical->submission_no);
+
+        $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.index', ['search' => '1234', 'today' => '0']))
+            ->assertOk()
+            ->assertSee($today->submission_no)
+            ->assertSee($historical->submission_no);
+    }
+
+    public function test_complete_submission_number_search_overrides_today_filter(): void
+    {
+        $this->travelTo(Carbon::parse('2026-09-12 12:00:00', 'UTC'));
+
+        $historical = Examination::factory()->create([
+            'submission_no' => 'ZB-260901-1234',
+            'submitted_at' => Carbon::parse('2026-09-01 00:00:00', 'UTC'),
+        ]);
+        Examination::factory()->create([
+            'submission_no' => 'ZB-260912-1234',
+            'submitted_at' => Carbon::parse('2026-09-11 16:00:00', 'UTC'),
+        ]);
+
+        $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.index', ['search' => $historical->submission_no, 'today' => '1']))
+            ->assertOk()
+            ->assertSee($historical->submission_no)
+            ->assertDontSee('ZB-260912-1234');
+    }
+
+    public function test_pagination_preserves_search_and_today_filter_and_details_have_anchor(): void
+    {
+        Examination::factory()->count(11)->create(['agent_company_name' => 'TodayCompany']);
+
+        $response = $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.index', ['search' => 'TodayCompany', 'today' => '1']));
+
+        $response->assertOk()
+            ->assertSee('search=TodayCompany', false)
+            ->assertSee('today=1', false)
+            ->assertSee('data-mobile-page-size="10"', false)
+            ->assertSee('data-mobile-examination-pagination', false);
+
+        $examination = Examination::factory()->create();
+
+        $this->actingAs(User::factory()->officer()->create())
+            ->get(route('examinations.show', [$examination, 'today' => '0']))
+            ->assertOk()
+            ->assertSee('id="examination-details"', false)
+            ->assertSee('data-mobile-detail-link', false);
     }
 
     public function test_index_renders_minimal_sidebar_rows_and_no_selection_state(): void
@@ -77,7 +190,7 @@ class StaffExaminationRetrievalTest extends TestCase
         ExaminationPhoto::factory()->for($examination)->create();
 
         $response = $this->actingAs(User::factory()->officer()->create())
-            ->get(route('examinations.index'));
+            ->get(route('examinations.index', ['today' => '0']));
 
         $response->assertOk()
             ->assertSee('ZB-SIDEBAR')
@@ -98,7 +211,7 @@ class StaffExaminationRetrievalTest extends TestCase
         $this->actingAs(User::factory()->officer()->create())
             ->get(route('examinations.index'))
             ->assertOk()
-            ->assertSee(__('examination.staff.no_examinations'))
+            ->assertSee(__('examination.staff.no_examinations_today'))
             ->assertSee(__('examination.staff.select_examination'));
     }
 
@@ -170,7 +283,7 @@ class StaffExaminationRetrievalTest extends TestCase
         Examination::factory()->count(25)->create(['agent_company_name' => 'ContextCompany']);
 
         $response = $this->actingAs(User::factory()->officer()->create())
-            ->get(route('examinations.show', [$examination, 'search' => 'ContextCompany', 'page' => 2]));
+            ->get(route('examinations.show', [$examination, 'search' => 'ContextCompany', 'today' => '0', 'page' => 2]));
 
         $response->assertOk()
             ->assertSee('ZB-SELECTED')
@@ -182,7 +295,7 @@ class StaffExaminationRetrievalTest extends TestCase
             ->assertDontSee(trans_choice('examination.staff.photo_count', 1, ['count' => 1]));
 
         $response->assertSee(
-            e(route('examinations.show', [$examination, 'search' => 'ContextCompany', 'page' => 1])),
+            e(route('examinations.show', [$examination, 'search' => 'ContextCompany', 'today' => '0', 'page' => 2])),
             false,
         );
 
@@ -209,7 +322,7 @@ class StaffExaminationRetrievalTest extends TestCase
         ]);
 
         $response = $this->actingAs(User::factory()->officer()->create())
-            ->get(route('examinations.show', $examination));
+            ->get(route('examinations.show', [$examination, 'today' => '0']));
 
         $response->assertOk()
             ->assertSee('ZB-DETAIL')

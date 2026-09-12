@@ -2,7 +2,7 @@
     <aside class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div class="flex-none border-b border-gray-200 p-4">
             <h1 class="text-xl font-bold">{{ __('examination.staff.list_title') }}</h1>
-            <form method="GET" action="{{ route('examinations.index') }}" class="mt-4 flex gap-2">
+            <form method="GET" action="{{ route('examinations.index') }}" class="mt-4 flex flex-wrap items-end gap-2">
                 <div class="min-w-0 flex-1">
                     <label for="search" class="sr-only">{{ __('examination.staff.search') }}</label>
                     <input
@@ -15,6 +15,18 @@
                         class="w-full rounded-lg border-2 border-gray-300 px-3 py-2 text-sm focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-gray-900"
                     >
                 </div>
+                <label for="today" class="flex min-h-10 items-center gap-2 px-1 text-sm text-gray-700">
+                    <input type="hidden" name="today" value="0">
+                    <input
+                        id="today"
+                        name="today"
+                        type="checkbox"
+                        value="1"
+                        @checked($today)
+                        class="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500"
+                    >
+                    {{ __('examination.staff.today_only') }}
+                </label>
                 <button
                     type="submit"
                     aria-label="{{ __('examination.staff.search') }}"
@@ -29,19 +41,28 @@
             </form>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto">
+        <div
+            class="min-h-0 flex-1 overflow-y-auto"
+            data-mobile-examination-list
+            data-mobile-page-size="10"
+            data-server-previous-url="{{ $examinations->previousPageUrl() ?? '' }}"
+            data-server-next-url="{{ $examinations->nextPageUrl() ?? '' }}"
+        >
             @if ($examinations->count() > 0)
-                <div class="divide-y divide-gray-200">
+                <div class="divide-y divide-gray-200" data-mobile-examination-rows>
                     @foreach ($examinations as $sidebarExamination)
                         @php
                             $sidebarQuery = array_filter([
                                 'search' => $search !== '' ? $search : null,
+                                'today' => $today ? '1' : '0',
                                 'page' => $examinations->currentPage() > 1 ? $examinations->currentPage() : null,
                             ], static fn ($value): bool => $value !== null);
                             $isSelected = $selectedExamination?->is($sidebarExamination) ?? false;
                         @endphp
                         <a
                             href="{{ route('examinations.show', [$sidebarExamination, ...$sidebarQuery]) }}"
+                            data-mobile-detail-link
+                            data-mobile-examination-row
                             @if ($isSelected) aria-current="page" data-selected="true" @endif
                             class="block px-4 py-4 transition hover:bg-gray-50 {{ $isSelected ? 'border-l-4 border-gray-900 bg-gray-100 pl-3' : '' }}"
                         >
@@ -54,13 +75,13 @@
                 </div>
             @else
                 <p class="p-5 text-sm text-gray-600">
-                    {{ $search !== '' ? __('examination.staff.no_search_results') : __('examination.staff.no_examinations') }}
+                    {{ $search !== '' ? __('examination.staff.no_search_results') : ($today ? __('examination.staff.no_examinations_today') : __('examination.staff.no_examinations')) }}
                 </p>
             @endif
         </div>
 
         @if ($examinations->hasPages())
-            <nav class="flex flex-none items-center justify-between gap-3 border-t border-gray-200 p-3 text-sm" aria-label="{{ __('examination.staff.list_title') }}">
+            <nav class="hidden flex-none items-center justify-between gap-3 border-t border-gray-200 p-3 text-sm lg:flex" aria-label="{{ __('examination.staff.list_title') }}">
                 @if ($examinations->onFirstPage())
                     <span class="text-gray-400">{{ __('examination.staff.previous') }}</span>
                 @else
@@ -74,6 +95,11 @@
                 @endif
             </nav>
         @endif
+        <nav data-mobile-examination-pagination hidden class="flex flex-none items-center justify-between gap-3 border-t border-gray-200 p-3 text-sm lg:hidden" aria-label="{{ __('examination.staff.list_title') }}">
+            <button type="button" data-mobile-examination-previous class="font-semibold underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline">{{ __('examination.staff.previous') }}</button>
+            <span data-mobile-examination-page></span>
+            <button type="button" data-mobile-examination-next class="font-semibold underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline">{{ __('examination.staff.next') }}</button>
+        </nav>
     </aside>
 
     <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -82,10 +108,10 @@
                 <div class="flex min-h-0 flex-none flex-col lg:max-h-[42%] lg:overflow-y-auto">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-2xl font-bold">{{ __('examination.staff.detail_title') }}</h2>
-                    <a href="{{ route('examinations.index', array_filter(['search' => $search !== '' ? $search : null, 'page' => $examinations->currentPage() > 1 ? $examinations->currentPage() : null], static fn ($value): bool => $value !== null)) }}" class="font-semibold underline lg:hidden">{{ __('examination.staff.back_to_list') }}</a>
+                    <a href="{{ route('examinations.index', array_filter(['search' => $search !== '' ? $search : null, 'today' => $today ? '1' : '0', 'page' => $examinations->currentPage() > 1 ? $examinations->currentPage() : null], static fn ($value): bool => $value !== null)) }}" class="font-semibold underline lg:hidden">{{ __('examination.staff.back_to_list') }}</a>
                 </div>
 
-                <div class="mt-3 grid flex-none gap-2 lg:grid-cols-2">
+                <div id="examination-details" class="mt-3 grid flex-none scroll-mt-4 gap-2 lg:grid-cols-2">
                     <section class="rounded-lg border border-gray-200 p-3">
                         <h3 class="border-b border-gray-200 pb-1 text-base font-semibold">{{ __('examination.sections.submission') }}</h3>
                         <dl class="mt-2 space-y-1 text-sm">

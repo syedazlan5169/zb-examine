@@ -192,6 +192,26 @@ closed drawer controls out of the keyboard order. Locale selection remains the
 existing session-based behavior and is intentionally not changed by this
 decision.
 
+## D029 — Phase 2B Examination Browsing UX
+
+The staff Examination workspace retains its existing shared Eloquent retrieval
+query and 25-row server paginator so desktop/MacBook scrollable browsing does
+not change. Below `lg`, a vanilla-JavaScript presentation layer displays ten
+rows at a time and hands off to the existing server paginator when necessary.
+There is no user-agent sniffing or duplicate authorization/query path.
+
+The staff list defaults to `today=1`. Today is calculated using the configured
+business timezone, normally `Asia/Kuala_Lumpur`, as a half-open local-day range
+converted to UTC against `examinations.submitted_at`. `today=0` is explicit and
+shows historical records. A complete canonical `ZB-YYMMDD-NNNN` search is an
+exact `submission_no` lookup and bypasses the date constraint while leaving the
+checkbox visibly checked.
+
+Search, filter, server page, selected item, and mobile detail state preserve
+their relevant query context. Mobile selection targets the stable
+`#examination-details` fragment through responsive JavaScript only; desktop
+selection does not add or force a fragment jump.
+
 ## D001 — Laravel Backend
 
 Use PHP with Laravel.

@@ -22,8 +22,8 @@ class NavigationTest extends TestCase
             ->assertDontSee(__('users.navigation'))
             ->assertSee('aria-controls="mobile-navigation-drawer"', false)
             ->assertSee('data-mobile-navigation', false)
-            ->assertSee(__('navigation.open_menu'))
-            ->assertSee(__('navigation.close_menu'));
+            ->assertSee(__('app.navigation.open_menu'))
+            ->assertSee(__('app.navigation.close_menu'));
     }
 
     public function test_agent_navigation_contains_agent_destinations_only(): void
