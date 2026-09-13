@@ -17,6 +17,13 @@
 /public/build
 /public/fonts-manifest.dev.json
 /public/hot
+/tools/legacy-migration/.venv/
+/tools/legacy-migration/*.sqlite
+/tools/legacy-migration/*.sqlite-*
+/tools/legacy-migration/*.jsonl
+/tools/legacy-migration/*.sha256
+/tools/legacy-migration/credentials/
+/tools/legacy-migration/.runtime/
 /public/storage
 /storage/*.key
 /storage/pail

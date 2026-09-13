@@ -153,6 +153,63 @@ mean production is deployed.
 
 ## Project Status
 
+## P13B Legacy Google Form Migration Tooling
+
+Status: **tooling implemented and workbook profiled; pilot and full migration not run.**
+
+The operator-only preparation tool lives under `tools/legacy-migration/`. Its
+read-only profiler independently verified the supplied workbook baseline:
+
+```text
+SHEET=Sheet1
+SOURCE_ROWS=4201
+DATE_MIN=2026-01-02 10:05:46.759 MYT
+DATE_MAX=2026-09-11 18:34:51.916 MYT
+POPULATED_IMAGE_CELLS=24130
+VALID_DRIVE_URLS=24125
+UNIQUE_DRIVE_IDS=24125
+INVALID_IMAGE_REFERENCES=5
+```
+
+The malformed image references are recorded by source row and image column and
+are skipped individually. The planner currently identifies 4,091 rows as
+importable and 110 rows as conservatively skipped because controlled source
+values do not map to the current enums. It assigns deterministic historical
+submission numbers using Malaysia business dates and source-row tie-breaking.
+
+The local tool uses SQLite checkpoints, JSONL manifests, SHA-256 checksums, and
+optional operator-supplied Drive/Spaces adapters. The Laravel command
+`legacy:import-google-form` supports strict validation, per-Examination
+transactions, idempotent identical reruns, collision refusal, and `--dry-run`.
+It does not access Drive, process images, upload Spaces objects, create users, or
+connect the MacBook directly to production MySQL.
+
+P13B audit fixes add manifest version `1`, mandatory checksum sidecars, strict
+historical/schema validation, soft-deleted collision protection, and complete
+parent/child idempotency comparison. Image checkpoints account for every
+non-empty source cell, but the worker can process only images joined to
+`PLANNED` Examination rows. Terminal image failures become `SKIPPED`; they do
+not suppress an otherwise valid parent, and completed photos are renumbered
+contiguously in the manifest. Retryable failures remain resumable through the
+SQLite state machine.
+
+The final read-only planner metrics are:
+
+```text
+CHECKPOINT_IMAGE_REFERENCES=24130
+PROCESSABLE_IMAGES_FOR_VALID_ROWS=23271
+IMAGES_ON_SKIPPED_ROWS=854
+MALFORMED_IMAGES_ON_VALID_ROWS=5
+```
+
+`PROCESSABLE_IMAGES_FOR_VALID_ROWS` counts valid-row image references requiring
+worker decisions; the five malformed references are terminal skips, leaving
+23,266 usable image uploads expected without real Drive or Spaces access.
+
+No pilot has run, no full historical image upload has run, no production
+Examination has been created by this tooling, and no production record has been
+modified.
+
 Initial Laravel and Docker development foundation is operational.
 
 The current domain foundation includes the `Examination`, `ExaminationCustomsFormNumber`, and `ExaminationPhoto` models, related enums, and the customs form number normalizer.

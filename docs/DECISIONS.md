@@ -1121,6 +1121,39 @@ translated to "Attachment A (Withdrawal)" in English.
 session behavior are unchanged — this is a display-only label change for a more compact,
 mobile-friendly control.
 
+## D028 - One-Time Legacy Google Form Migration Tooling
+
+P13B implements operator-only preparation and a production-side importer for
+the historical Google Form workbook. The local tool profiles the workbook in
+read-only mode, validates explicit enum mappings, plans deterministic
+`ZB-YYMMDD-NNNN` numbers using `Asia/Kuala_Lumpur` dates and source-row
+tie-breaking, and stores resumable examination/image state in SQLite. It emits
+JSONL plus a SHA-256 checksum only after image checkpoints are verified.
+
+Drive OAuth and Spaces credentials remain external operator configuration and
+are never written to manifests. Image processing, Drive downloads, and Spaces
+uploads remain local-worker responsibilities. The Laravel
+`legacy:import-google-form` command validates the manifest, supports a true
+no-write `--dry-run`, inserts one examination and its children per transaction,
+skips identical existing records, refuses mismatched submission-number
+collisions, and synchronizes historical sequence counters monotonically. It
+does not create users or invoke the live submission-number generator.
+
+The workbook has been independently profiled with 4,201 source rows, 24,130
+populated image cells, 24,125 valid Drive URLs, 24,125 unique Drive IDs, and
+five malformed image values. Tooling is implemented and tested locally; the
+pilot and full migration remain explicitly unrun.
+
+P13B audit fixes are now included: planner records carry manifest version `1`,
+the checksum sidecar is mandatory, and importer validation covers source-row
+shape, historical UTC timestamps/range, schema lengths, enum values, conditional
+`other` fields, sequence bounds, and soft-deleted collisions. SQLite image
+processing is restricted to `PLANNED` parent rows. Every non-empty image remains
+auditable, while terminal image skips do not block a valid parent; only complete
+images enter the manifest and their production display order is renumbered
+contiguously. The worker performs deterministic HEAD-before-PUT recovery and
+persists retry/terminal state. No real Drive or Spaces access has occurred.
+
 ## D027 - Authenticated Private Spaces Evidence Preview
 
 Finalized private evidence has two delivery modes. Local `photo_uploads` evidence
