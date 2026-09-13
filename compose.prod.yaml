@@ -2,11 +2,11 @@ name: zb-examine-prod
 
 x-laravel-environment: &laravel-environment
   DB_CONNECTION: mysql
-  DB_HOST: db
+  DB_HOST: probono-mysql
   DB_PORT: 3306
-  DB_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE}
-  DB_USERNAME: ${MYSQL_USER:?Set MYSQL_USER}
-  DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+  DB_DATABASE: zb_examine
+  DB_USERNAME: ${DB_USERNAME:?Set DB_USERNAME}
+  DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
 
 services:
   app:
@@ -23,9 +23,9 @@ services:
     environment: *laravel-environment
     expose:
       - "9000"
-    depends_on:
-      db:
-        condition: service_healthy
+    networks:
+      - default
+      - probono-db
     healthcheck:
       test:
         - CMD
@@ -58,23 +58,6 @@ services:
       retries: 5
       start_period: 10s
 
-  db:
-    image: mysql:8.4
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-
   scheduler:
     image: zb-examine-app:${RELEASE_ID:?Set RELEASE_ID to the full Git SHA}
     restart: unless-stopped
@@ -82,9 +65,10 @@ services:
     env_file:
       - ${LARAVEL_ENV_FILE:?Set LARAVEL_ENV_FILE}
     environment: *laravel-environment
-    depends_on:
-      db:
-        condition: service_healthy
+    networks:
+      - default
+      - probono-db
 
-volumes:
-  mysql_data:
+networks:
+  probono-db:
+    external: true

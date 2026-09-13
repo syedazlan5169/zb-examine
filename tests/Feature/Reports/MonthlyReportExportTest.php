@@ -125,7 +125,7 @@ class MonthlyReportExportTest extends TestCase
             unlink($path);
 
             $this->assertContains('Ringkasan', array_merge(...$sheets['Summary']));
-            $this->assertContains('No. Penyerahan', array_merge(...$sheets['Monthly Statement']));
+            $this->assertContains('No. Rujukan', array_merge(...$sheets['Monthly Statement']));
             $this->assertContains('Foto Bukti', array_merge(...$sheets['Monthly Statement']));
         } finally {
             app()->setLocale($originalLocale);

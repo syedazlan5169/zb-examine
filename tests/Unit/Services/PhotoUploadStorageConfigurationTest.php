@@ -22,6 +22,8 @@ class PhotoUploadStorageConfigurationTest extends TestCase
         $this->assertSame('photo_uploads', config('zb-examine.photo_upload_disk'));
         $this->assertSame('photo_uploads_spaces', config('zb-examine.photo_upload_direct_disk'));
         $this->assertSame(300, config('zb-examine.photo_upload_presign_ttl_seconds'));
+        $this->assertSame(1600, config('zb-examine.examination_photo_max_dimension'));
+        $this->assertSame(72, config('zb-examine.examination_photo_quality'));
         $this->assertSame('local', config('filesystems.disks.photo_uploads.driver'));
         $this->assertSame('s3', config('filesystems.disks.photo_uploads_spaces.driver'));
     }

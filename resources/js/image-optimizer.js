@@ -1,8 +1,37 @@
-const DEFAULT_STAGES = [
-    { longestEdge: 2400, quality: 0.82, threshold: 1024 * 1024 },
-    { longestEdge: 2400, quality: 0.72, threshold: 1024 * 1024 },
-    { longestEdge: 2000, quality: 0.72, threshold: 2 * 1024 * 1024 },
-];
+const MAX_BYTES = 2 * 1024 * 1024;
+const DEFAULT_MAX_DIMENSION = 1600;
+const DEFAULT_QUALITY = 0.72;
+
+function normalizeMaxDimension(value) {
+    const dimension = Number(value);
+
+    if (!Number.isFinite(dimension)) {
+        return DEFAULT_MAX_DIMENSION;
+    }
+
+    return Math.max(1, Math.min(10000, Math.round(dimension)));
+}
+
+function normalizeQuality(value) {
+    const quality = Number(value);
+
+    if (!Number.isFinite(quality)) {
+        return DEFAULT_QUALITY;
+    }
+
+    const normalized = quality > 1 ? quality / 100 : quality;
+
+    return Math.max(0.01, Math.min(1, normalized));
+}
+
+function processingStages(maxDimension, quality) {
+    return [
+        { longestEdge: maxDimension, quality },
+        { longestEdge: Math.max(1, Math.floor(maxDimension * 0.875)), quality: Math.max(0.01, quality * 0.9) },
+        { longestEdge: Math.max(1, Math.floor(maxDimension * 0.75)), quality: Math.max(0.01, quality * 0.8) },
+        { longestEdge: Math.max(1, Math.floor(maxDimension * 0.625)), quality: Math.max(0.01, quality * 0.7) },
+    ];
+}
 
 function roundDimension(value) {
     const rounded = Math.round(value);
@@ -102,6 +131,8 @@ async function createCanvasBlob(image, width, height, quality, signal) {
 export async function optimizeImage(file, options = {}) {
     const signal = options.signal;
     const originalBytes = file.size || 0;
+    const maxDimension = normalizeMaxDimension(options.maxDimension);
+    const quality = normalizeQuality(options.quality);
 
     const { bitmap, image, needsBitmapCleanup } = await readImageSource(file, signal);
 
@@ -122,7 +153,7 @@ export async function optimizeImage(file, options = {}) {
     let selectedBlob = null;
     let selectedQuality = null;
 
-    for (const stageConfig of DEFAULT_STAGES) {
+    for (const stageConfig of processingStages(maxDimension, quality)) {
         const scale = Math.min(1, stageConfig.longestEdge / Math.max(originalWidth, originalHeight));
         candidateWidth = roundDimension(originalWidth * scale);
         candidateHeight = roundDimension(originalHeight * scale);
@@ -137,7 +168,7 @@ export async function optimizeImage(file, options = {}) {
         selectedBlob = blob;
         selectedQuality = stageConfig.quality;
 
-        if (blob.size <= stageConfig.threshold || stage === 3) {
+        if (blob.size <= MAX_BYTES) {
             break;
         }
     }
@@ -149,7 +180,7 @@ export async function optimizeImage(file, options = {}) {
         throw new Error('compression-failed');
     }
 
-    if (selectedBlob.size > 2 * 1024 * 1024) {
+    if (selectedBlob.size > MAX_BYTES) {
         if (bitmap && needsBitmapCleanup) {
             bitmap.close();
         }

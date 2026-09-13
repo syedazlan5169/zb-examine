@@ -216,6 +216,10 @@
             @php
                 $photoConfig = [
                     'maxPhotos' => 10,
+                    'photoOptimizer' => [
+                        'maxDimension' => config('zb-examine.examination_photo_max_dimension'),
+                        'quality' => config('zb-examine.examination_photo_quality'),
+                    ],
                     'showDiagnostics' => false,
                     'messages' => [
                         'takePhoto' => __('examination_photos.take_photo'),

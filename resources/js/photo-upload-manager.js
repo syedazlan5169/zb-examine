@@ -432,6 +432,8 @@ export class PhotoUploadManager {
 
             const optimized = await optimizeImage(photo.file, {
                 signal: photo.abortController?.signal,
+                maxDimension: this.config.photoOptimizer?.maxDimension,
+                quality: this.config.photoOptimizer?.quality,
             });
 
             if (!this.isCurrent(photo, generation)) {

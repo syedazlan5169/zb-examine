@@ -42,6 +42,13 @@ class ExaminationSubmissionFormTest extends TestCase
             ->assertSee('id="examination-draft-clear"', false);
     }
 
+    public function test_form_exposes_configured_photo_optimizer_defaults(): void
+    {
+        $this->get(route('examinations.create'))
+            ->assertOk()
+            ->assertSee('"photoOptimizer":{"maxDimension":1600,"quality":72}', false);
+    }
+
     public function test_authenticated_form_draft_context_uses_only_the_user_id(): void
     {
         $user = User::factory()->agent()->create();

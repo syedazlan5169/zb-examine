@@ -2,6 +2,48 @@
 
 Last updated: 2026-09-11
 
+## Pre-Production Optimization — Repository Implemented, VPS Deferred
+
+The repository now configures browser Examination evidence processing through
+`config/zb-examine.php` and exposes these defaults to the existing photo
+optimizer:
+
+```text
+EXAMINATION_PHOTO_MAX_DIMENSION=1600
+EXAMINATION_PHOTO_QUALITY=72
+```
+
+The normal output is a JPEG with a maximum 1600-pixel long edge at quality
+0.72. Smaller images are never upscaled. If the normal result exceeds the
+existing 2 MiB limit, the browser makes a finite number of progressively more
+compressed and smaller attempts; 2400-pixel fallback stages are no longer
+used. Canvas re-encoding remains responsible for removing unnecessary source
+metadata after EXIF-aware orientation handling. Human readability QA with real
+phone photographs remains required and has not been completed.
+
+Local development continues to use the project-owned MySQL 8.4 `db` service
+and `mysql_data` volume. Production Compose no longer owns a MySQL service.
+Production `app` and `scheduler` containers join the external Docker network
+`probono-db` and expect the infrastructure-owned MySQL alias
+`probono-mysql`; no database port is published by this repository.
+
+The intended VPS infrastructure belongs outside this repository at
+`/opt/probono-infrastructure/mysql/`. It must provide one persistent MySQL 8.4
+service, one database and restricted user per application, and no public port
+3306. This repository does not provision that service, migrate existing data,
+or create an Admin. The release will use a fresh `zb_examine` database, run
+`php artisan migrate --force`, and create exactly one Admin operationally with
+operator-supplied credentials. The old project-specific production volume
+should remain untouched until acceptance.
+
+For the 4 GB VPS, initial shared-MySQL guidance is `innodb_buffer_pool_size =
+512M`, `max_connections = 50`, `performance_schema` enabled, and
+`general_log` disabled, with conservative per-connection buffers. Future
+tuning should use measured RAM, connection count, buffer-pool pressure, and
+slow-query data. Logical per-application dumps should be stored outside the
+MySQL volume and preferably copied off-host; backups and credentials are
+secrets.
+
 ## User and Account Management — Implemented Locally, Not Deployed
 
 The User and Account Management module is implemented and tested in the local

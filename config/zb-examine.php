@@ -37,6 +37,10 @@ return [
 
     'photo_preview_presign_ttl_seconds' => env('PHOTO_PREVIEW_PRESIGN_TTL', 120),
 
+    'examination_photo_max_dimension' => max(1, min(10000, (int) env('EXAMINATION_PHOTO_MAX_DIMENSION', 1600))),
+
+    'examination_photo_quality' => max(1, min(100, (int) env('EXAMINATION_PHOTO_QUALITY', 72))),
+
     /*
     |--------------------------------------------------------------------------
     | Photo Upload Cleanup Configuration

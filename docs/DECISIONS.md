@@ -1,3 +1,49 @@
+## D039 - Pre-Production Photo Compression and Shared Production MySQL
+
+Examination evidence photos continue to be optimized in the browser before
+proxy or direct upload. The normal processing target is a JPEG with a maximum
+1600-pixel long edge and quality 72 (Canvas quality 0.72), configured through
+`EXAMINATION_PHOTO_MAX_DIMENSION` and `EXAMINATION_PHOTO_QUALITY` in
+`config/zb-examine.php`. The optimizer preserves aspect ratio, never upscales,
+keeps EXIF-aware orientation handling before canvas re-encoding, and retains
+the existing 2 MiB server limit. A finite fallback may only use smaller
+dimensions and lower quality than the normal result. Compression is not moved
+to PHP, and JPEG remains the evidence format.
+
+The existing temporary upload sessions, proxy/direct transports, Spaces
+staging and sealing, ownership handoff, cleanup/deletion intents, private
+previews, refresh restoration, locale restoration, draft integration, and
+application-streamed preview path remain unchanged. The upload API's abort
+signal forwarding remains unchanged.
+
+Local development retains its project-local MySQL 8.4 `db` service,
+`mysql_data` volume, and health-gated `docker compose up` workflow. Production
+Compose no longer owns a MySQL service or volume. Production `app` and
+`scheduler` join an infrastructure-created external Docker network named
+`probono-db` and connect to the stable MySQL alias `probono-mysql` on port
+3306. Nginx does not join that database network, and no host/public port 3306
+is published.
+
+The shared MySQL service is VPS-owned outside this repository, preferably at
+`/opt/probono-infrastructure/mysql/`, with one persistent volume. Each
+application receives a separate database and restricted user; Laravel never
+uses MySQL root credentials. Future applications are provisioned manually with
+`CREATE DATABASE`, `CREATE USER`, schema-scoped `GRANT`, and `SHOW GRANTS`.
+
+This release intentionally creates a fresh `zb_examine` database. No current
+production dump/import is required. After infrastructure health verification,
+deployment configures the dedicated user, runs `php artisan migrate --force`,
+and creates exactly one Admin operationally; credentials are not seeded or
+committed. The old project-specific volume and Compose revision remain
+available until acceptance, and deployment should remain in maintenance or
+pre-acceptance state while the destructive topology switch is verified.
+
+Initial shared-MySQL guidance for the 4 GB VPS is a 512M InnoDB buffer pool,
+50 maximum connections, performance schema enabled, and general logging
+disabled. Per-connection buffers remain conservative/default until measured
+usage justifies tuning. Backups use logical all-database and/or independent
+per-application dumps stored outside the MySQL volume, preferably off-host.
+
 ## D025 - Private Spaces Staging and Sealed Evidence Architecture
 
 Step 3B.6A provides the DigitalOcean Spaces storage primitives only. Direct
