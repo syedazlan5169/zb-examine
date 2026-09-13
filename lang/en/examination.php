@@ -36,6 +36,9 @@ return [
         'previous' => 'Previous',
         'next' => 'Next',
         'page' => 'Page :current of :last',
+        'lightbox_close' => 'Close',
+        'lightbox_previous' => 'Previous photo',
+        'lightbox_next' => 'Next photo',
     ],
 
     'agent' => [

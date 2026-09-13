@@ -36,6 +36,9 @@ return [
         'previous' => 'Sebelumnya',
         'next' => 'Seterusnya',
         'page' => 'Halaman :current daripada :last',
+        'lightbox_close' => 'Tutup',
+        'lightbox_previous' => 'Foto sebelumnya',
+        'lightbox_next' => 'Foto seterusnya',
     ],
 
     'agent' => [

@@ -187,14 +187,62 @@
                         <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
                             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 @foreach ($selectedExamination->photos as $photo)
-                                    <a href="{{ route('examinations.photos.preview', [$selectedExamination, $photo]) }}" target="_blank" rel="noopener noreferrer" class="block aspect-[4/3] overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                                    <button
+                                        type="button"
+                                        data-evidence-lightbox-trigger
+                                        data-lightbox-src="{{ route('examinations.photos.preview', [$selectedExamination, $photo]) }}"
+                                        data-lightbox-alt="{{ __('examination.staff.evidence').' '.($loop->iteration) }}"
+                                        class="block aspect-[4/3] overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                                    >
                                         <img src="{{ route('examinations.photos.preview', [$selectedExamination, $photo]) }}" alt="{{ __('examination.staff.evidence').' '.($loop->iteration) }}" class="h-full w-full object-contain" loading="lazy">
-                                    </a>
+                                    </button>
                                 @endforeach
                             </div>
                         </div>
                     @endif
                 </section>
+            </div>
+
+            <div
+                id="evidence-lightbox"
+                data-evidence-lightbox
+                hidden
+                role="dialog"
+                aria-modal="true"
+                aria-label="{{ __('examination.staff.evidence') }}"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/90 p-4"
+            >
+                <button
+                    type="button"
+                    data-lightbox-close
+                    aria-label="{{ __('examination.staff.lightbox_close') }}"
+                    class="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+                >
+                    <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current stroke-2">
+                        <path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" />
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    data-lightbox-previous
+                    aria-label="{{ __('examination.staff.lightbox_previous') }}"
+                    class="absolute left-2 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/10"
+                >
+                    <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current stroke-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m15 6-6 6 6 6" />
+                    </svg>
+                </button>
+                <img data-lightbox-image src="" alt="" class="max-h-[90vh] max-w-[95vw] object-contain">
+                <button
+                    type="button"
+                    data-lightbox-next
+                    aria-label="{{ __('examination.staff.lightbox_next') }}"
+                    class="absolute right-2 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/10"
+                >
+                    <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current stroke-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" />
+                    </svg>
+                </button>
             </div>
 
             @can('delete', $selectedExamination)

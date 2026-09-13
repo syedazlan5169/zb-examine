@@ -343,6 +343,17 @@ class StaffExaminationRetrievalTest extends TestCase
             ->assertDontSee('private/first.jpg')
             ->assertDontSee('storage_disk')
             ->assertDontSee('digitaloceanspaces.com');
+
+        $response
+            ->assertSee('data-evidence-lightbox-trigger', false)
+            ->assertSee('data-lightbox-src="'.route('examinations.photos.preview', [$examination, $firstPhoto]).'"', false)
+            ->assertSee('data-lightbox-src="'.route('examinations.photos.preview', [$examination, $secondPhoto]).'"', false)
+            ->assertSee('data-evidence-lightbox', false)
+            ->assertSee('data-lightbox-image', false)
+            ->assertSee('data-lightbox-close', false)
+            ->assertSee('data-lightbox-previous', false)
+            ->assertSee('data-lightbox-next', false)
+            ->assertDontSee('target="_blank"', false);
     }
 
     public function test_detail_handles_no_photos_and_success_route_remains_literal(): void
