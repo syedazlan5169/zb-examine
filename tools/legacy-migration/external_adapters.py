@@ -108,12 +108,18 @@ class SpacesObjectStore(ObjectStore):
 
 
 def spaces_from_environment() -> SpacesObjectStore:
+    def clean(value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return value.strip().strip("'\"‘’“”").strip()
+
     required = {
-        "endpoint": os.environ.get("P13C_SPACES_ENDPOINT"),
-        "region": os.environ.get("P13C_SPACES_REGION"),
-        "bucket": os.environ.get("P13C_SPACES_BUCKET"),
-        "access_key": os.environ.get("P13C_SPACES_ACCESS_KEY"),
-        "secret_key": os.environ.get("P13C_SPACES_SECRET_KEY"),
+        "endpoint": clean(os.environ.get("P13C_SPACES_ENDPOINT")),
+        "region": clean(os.environ.get("P13C_SPACES_REGION")),
+        "bucket": clean(os.environ.get("P13C_SPACES_BUCKET")),
+        "access_key": clean(os.environ.get("P13C_SPACES_ACCESS_KEY")),
+        "secret_key": clean(os.environ.get("P13C_SPACES_SECRET_KEY")),
     }
     missing = [key for key, value in required.items() if not value]
     if missing:
