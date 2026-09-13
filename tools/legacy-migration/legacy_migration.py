@@ -364,12 +364,13 @@ class MigrationState:
                 continue
             file_id = drive_file_id(raw_value)
             self.connection.execute(
-                "INSERT OR IGNORE INTO images(source_row,photo_index,drive_file_id,storage_path,download_state,last_error_code) VALUES(?,?,?,?,?,?)",
+                "INSERT OR IGNORE INTO images(source_row,photo_index,drive_file_id,storage_path,download_state,verification_state,last_error_code) VALUES(?,?,?,?,?,?,?)",
                 (
                     source_row,
                     photo_index,
                     file_id,
                     legacy_storage_path(source_row, photo_index),
+                    "PENDING" if file_id else "SKIPPED",
                     "PENDING" if file_id else "SKIPPED",
                     None if file_id else "invalid_drive_reference",
                 ),
