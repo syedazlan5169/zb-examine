@@ -146,7 +146,11 @@ class ImagePreparationWorker:
                 try:
                     remote = self.store.head(checkpoint["storage_path"])
                 except Exception as exception:
-                    if "not_found" not in str(exception).lower() and "missing" not in str(exception).lower():
+                    response = getattr(exception, "response", {})
+                    status_code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+                    error_code = response.get("Error", {}).get("Code", "")
+                    is_missing = status_code == 404 or error_code in {"404", "NoSuchKey", "NotFound"}
+                    if not is_missing and "not_found" not in str(exception).lower() and "missing" not in str(exception).lower():
                         raise
                     remote = None
                 if remote is None or int(remote.get("size", -1)) != optimized.file_size:
