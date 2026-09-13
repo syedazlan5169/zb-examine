@@ -79,6 +79,8 @@ class ImageOptimizer:
 
 
 class ImagePreparationWorker:
+    MAX_DECODE_ATTEMPTS = 3
+
     def __init__(self, downloader: DriveDownloader, store: ObjectStore, optimizer: ImageOptimizer | None = None, temporary_root: Path | None = None):
         self.downloader = downloader
         self.store = store
@@ -163,7 +165,9 @@ class ImagePreparationWorker:
                 return optimized
         except (ValueError, RuntimeError) as exception:
             error_code = str(exception)
-            terminal = error_code in {"photo_too_large", "image_decode_failed", "unsupported_image", "invalid_drive_reference"}
+            terminal = error_code in {"photo_too_large", "unsupported_image", "invalid_drive_reference"}
+            if error_code == "image_decode_failed":
+                terminal = attempt_count >= self.MAX_DECODE_ATTEMPTS
             state.update_image(
                 source_row,
                 photo_index,

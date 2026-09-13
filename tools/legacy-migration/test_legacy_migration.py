@@ -16,7 +16,7 @@ from legacy_migration import (
     write_manifest,
     WorkbookProfiler,
 )
-from worker import ImagePreparationWorker
+from worker import ImagePreparationWorker, OptimizedImage
 
 
 class LegacyMigrationTests(unittest.TestCase):
@@ -91,6 +91,70 @@ class LegacyMigrationTests(unittest.TestCase):
             state.connection.commit()
             with self.assertRaisesRegex(ValueError, "row_not_importable"):
                 ImagePreparationWorker(Downloader(), Store()).process_checkpoint(state, 2, 1)
+
+    def test_decode_failure_retries_with_fresh_download_and_completes(self):
+        class Downloader:
+            def __init__(self):
+                self.calls = 0
+
+            def download(self, file_id, destination):
+                self.calls += 1
+                destination.write_bytes(b"bad" if self.calls == 1 else b"good")
+
+        class Optimizer:
+            def __init__(self):
+                self.calls = 0
+
+            def optimize(self, source, destination):
+                self.calls += 1
+                if self.calls == 1:
+                    raise ValueError("image_decode_failed")
+                destination.write_bytes(b"jpeg")
+                return OptimizedImage(destination, "image/jpeg", 4, 10, 10, 1, 72)
+
+        class Store:
+            def __init__(self):
+                self.put_calls = 0
+
+            def put(self, storage_path, source, mime_type):
+                self.put_calls += 1
+
+            def head(self, storage_path):
+                if self.put_calls == 0:
+                    raise RuntimeError("not_found")
+                return {"size": 4, "etag": "etag"}
+
+        with tempfile.TemporaryDirectory() as directory:
+            state = MigrationState(Path(directory) / "state.sqlite")
+            state.upsert_examination(2, None, "ZB-260102-0001", "PLANNED", None, {
+                "manifest_version": 1,
+                "source_row": 2,
+                "submission_no": "ZB-260102-0001",
+                "submitted_at_utc": "2026-01-02T02:05:46.759000Z",
+            })
+            state.connection.execute(
+                "INSERT INTO images(source_row,photo_index,drive_file_id,storage_path) VALUES(?,?,?,?)",
+                (2, 1, "drive-id", legacy_storage_path(2, 1)),
+            )
+            state.connection.commit()
+            downloader = Downloader()
+            optimizer = Optimizer()
+            store = Store()
+            worker = ImagePreparationWorker(downloader, store, optimizer, Path(directory))
+
+            with self.assertRaisesRegex(ValueError, "image_decode_failed"):
+                worker.process_checkpoint(state, 2, 1)
+            checkpoint = state.image(2, 1)
+            self.assertEqual("RETRYABLE_FAILURE", checkpoint["verification_state"])
+            self.assertEqual(1, checkpoint["attempt_count"])
+
+            worker.process_checkpoint(state, 2, 1)
+            checkpoint = state.image(2, 1)
+            self.assertEqual("COMPLETE", checkpoint["verification_state"])
+            self.assertEqual(2, checkpoint["attempt_count"])
+            self.assertEqual(2, downloader.calls)
+            self.assertEqual(2, optimizer.calls)
+            self.assertEqual(1, store.put_calls)
 
     def test_planner_generated_record_writes_versioned_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
