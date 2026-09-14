@@ -1121,7 +1121,7 @@ translated to "Attachment A (Withdrawal)" in English.
 session behavior are unchanged — this is a display-only label change for a more compact,
 mobile-friendly control.
 
-## D028 - One-Time Legacy Google Form Migration Tooling
+## D028 - One-Time Legacy Google Form Migration
 
 P13B implements operator-only preparation and a production-side importer for
 the historical Google Form workbook. The local tool profiles the workbook in
@@ -1139,10 +1139,37 @@ skips identical existing records, refuses mismatched submission-number
 collisions, and synchronizes historical sequence counters monotonically. It
 does not create users or invoke the live submission-number generator.
 
-The workbook has been independently profiled with 4,201 source rows, 24,130
+The workbook was independently profiled with 4,201 source rows, 24,130
 populated image cells, 24,125 valid Drive URLs, 24,125 unique Drive IDs, and
-five malformed image values. Tooling is implemented and tested locally; the
-pilot and full migration remain explicitly unrun.
+five malformed image values. The pilot and full migration subsequently ran
+under the approved production runbook and completed successfully on 2026-09-14.
+
+The authoritative completion record is:
+
+```text
+SOURCE_ROWS=4201
+VALID_EXAMINATIONS=4091
+SKIPPED_EXAMINATIONS=110
+HISTORICAL_PHOTOS_IMPORTED=23227
+HISTORICAL_CUSTOMS_ROWS=4091
+TERMINAL_IMAGE_SKIPS=49
+IMAGE_DECODE_FAILED=44
+INVALID_DRIVE_REFERENCE=5
+ZERO_PHOTO_EXAMINATIONS_RETAINED=5
+PILOT_PREVIOUSLY_IMPORTED=7
+FULL_IMPORT_ADDITIONS=4084
+HISTORICAL_USER_ID=NULL (all records)
+BUSINESS_DATES=174
+PRODUCTION_DRY_RUN=PASS
+REAL_PRODUCTION_IMPORT=PASS
+POST_IMPORT_IDEMPOTENCY=PASS
+HUMAN_QA=PASS
+```
+
+The migration is COMPLETE. The full manifest is not to be rerun against
+production except for an intentional, audited disaster-recovery or restore
+procedure. This restriction protects the verified idempotent production state
+and ensures any recovery execution has an explicit audit trail and approval.
 
 P13B audit fixes are now included: planner records carry manifest version `1`,
 the checksum sidecar is mandatory, and importer validation covers source-row

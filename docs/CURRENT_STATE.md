@@ -153,9 +153,38 @@ mean production is deployed.
 
 ## Project Status
 
-## P13B Legacy Google Form Migration Tooling
+## P13B Legacy Google Form Migration
 
-Status: **tooling implemented and workbook profiled; pilot and full migration not run.**
+Status: **COMPLETE. Historical Google Form -> Sistem Daftar Pemeriksaan migration completed successfully on 2026-09-14.**
+
+The authoritative production result is:
+
+```text
+SOURCE_ROWS=4201
+VALID_EXAMINATIONS=4091
+SKIPPED_EXAMINATIONS=110
+HISTORICAL_PHOTOS_IMPORTED=23227
+HISTORICAL_CUSTOMS_ROWS=4091
+TERMINAL_IMAGE_SKIPS=49
+IMAGE_DECODE_FAILED=44
+INVALID_DRIVE_REFERENCE=5
+ZERO_PHOTO_EXAMINATIONS_RETAINED=5
+PILOT_PREVIOUSLY_IMPORTED=7
+FULL_IMPORT_ADDITIONS=4084
+HISTORICAL_USER_ID=NULL (all records)
+BUSINESS_DATES=174
+PRODUCTION_DRY_RUN=PASS
+REAL_PRODUCTION_IMPORT=PASS
+POST_IMPORT_IDEMPOTENCY=PASS
+HUMAN_QA=PASS
+```
+
+All 4,091 historical examinations are present in production with no
+collisions, invalid rows, duplicate parents, or non-null historical `user_id`
+values. The five examinations with no surviving decoded photo were intentionally
+retained, and their customs rows were preserved. Production health checks passed
+after import. The full manifest must not be rerun against production except as
+part of an intentional, audited disaster-recovery or restore procedure.
 
 The operator-only preparation tool lives under `tools/legacy-migration/`. Its
 read-only profiler independently verified the supplied workbook baseline:
@@ -206,9 +235,10 @@ MALFORMED_IMAGES_ON_VALID_ROWS=5
 worker decisions; the five malformed references are terminal skips, leaving
 23,266 usable image uploads expected without real Drive or Spaces access.
 
-No pilot has run, no full historical image upload has run, no production
-Examination has been created by this tooling, and no production record has been
-modified.
+The migration has now completed. The retained local audit/recovery artifacts are
+the full SQLite checkpoint state, full JSONL manifest, manifest checksum, and
+the original `current-data.xlsx` source workbook. Drive credentials and other
+disposable runtime material are not retained in the repository runtime folder.
 
 Initial Laravel and Docker development foundation is operational.
 
