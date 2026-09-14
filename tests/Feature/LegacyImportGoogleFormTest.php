@@ -124,6 +124,27 @@ class LegacyImportGoogleFormTest extends TestCase
         $this->assertSame(0, DB::table('submission_sequences')->count());
     }
 
+    public function test_historical_manifest_record_with_zero_photos_imports_successfully(): void
+    {
+        $record = $this->record();
+        $record['photos'] = [];
+        $manifest = $this->manifestPath([$record]);
+
+        $this->artisan('legacy:import-google-form', ['manifest' => $manifest])
+            ->assertExitCode(0);
+
+        $this->assertSame(1, Examination::count());
+        $this->assertSame(1, ExaminationCustomsFormNumber::count());
+        $this->assertSame(0, ExaminationPhoto::count());
+        $this->assertSame('B18112052109', ExaminationCustomsFormNumber::sole()->number);
+
+        $this->artisan('legacy:import-google-form', ['manifest' => $manifest])
+            ->assertExitCode(0);
+
+        $this->assertSame(1, Examination::count());
+        $this->assertSame(0, ExaminationPhoto::count());
+    }
+
     public function test_python_generated_manifest_is_accepted_by_laravel(): void
     {
         $directory = sys_get_temp_dir().'/p13b-cross-language-'.bin2hex(random_bytes(6));

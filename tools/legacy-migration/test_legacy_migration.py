@@ -72,6 +72,44 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertEqual(MANIFEST_VERSION, record["manifest_version"])
             self.assertEqual([1, 2], [photo["display_order"] for photo in record["photos"]])
 
+    def test_all_images_terminal_skipped_still_manifests_parent_with_no_photos(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = MigrationState(Path(directory) / "state.sqlite")
+            payload = {
+                "manifest_version": MANIFEST_VERSION,
+                "source_row": 2,
+                "submission_no": "ZB-260102-0001",
+                "submitted_at_utc": "2026-01-02T02:05:46.759000Z",
+                "agent_name": "Agent",
+                "agent_phone": "0123456789",
+                "agent_code": "AGENT",
+                "agent_company_name": "Company",
+                "agent_station_code": "ST-1",
+                "location": "container_gate_terminal",
+                "form_type": "k1",
+                "form_type_other": None,
+                "container_status": "fcl",
+                "reason": None,
+                "reason_other": None,
+                "attending_officer_type": "customs",
+                "customs_form_numbers": ["FORM-1"],
+                "photos": [],
+            }
+            state.upsert_examination(2, None, payload["submission_no"], "PLANNED", None, payload)
+            for index in (1, 2, 3):
+                state.connection.execute(
+                    "INSERT INTO images(source_row,photo_index,drive_file_id,storage_path,download_state,verification_state,last_error_code) VALUES(?,?,?,?,?,?,?)",
+                    (2, index, f"id-{index}", legacy_storage_path(2, index), "SKIPPED", "SKIPPED", "image_decode_failed"),
+                )
+            state.connection.commit()
+            output = Path(directory) / "manifest.jsonl"
+            result = write_manifest(state, output)
+            self.assertEqual(1, result["records"])
+            record = json.loads(output.read_text().strip())
+            self.assertEqual(MANIFEST_VERSION, record["manifest_version"])
+            self.assertEqual([], record["photos"])
+            self.assertEqual(["FORM-1"], record["customs_form_numbers"])
+
     def test_worker_refuses_skipped_rows_before_downloader_call(self):
         class Downloader:
             def download(self, file_id, destination):

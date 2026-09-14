@@ -321,7 +321,9 @@ final class LegacyImportGoogleForm extends Command
             $customs[] = $number;
         }
 
-        if (! is_array($record['photos']) || count($record['photos']) < 1 || count($record['photos']) > 10) {
+        // A historical examination may legitimately have zero surviving photos
+        // when every source image failed decoding; the parent is still valid.
+        if (! is_array($record['photos']) || count($record['photos']) > 10) {
             throw new \InvalidArgumentException('photos_invalid');
         }
 

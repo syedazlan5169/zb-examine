@@ -432,7 +432,12 @@ def manifest_checksum(path: Path) -> str:
 
 
 def write_manifest(state: MigrationState, output: Path) -> dict[str, int]:
-    """Write valid rows after every eligible image reaches a terminal state."""
+    """Write every PLANNED row once all of its images reach a terminal state.
+
+    A parent with zero COMPLETE images (all terminal-skipped) still emits a
+    manifest record with an empty photos list; only unresolved (non-terminal)
+    images defer the row.
+    """
     records = []
     for row in state.connection.execute(
         "SELECT source_row, payload_json FROM examinations WHERE validation_state='PLANNED' ORDER BY source_row"
@@ -453,7 +458,7 @@ def write_manifest(state: MigrationState, output: Path) -> dict[str, int]:
             "SELECT download_state, verification_state FROM images WHERE source_row=? ORDER BY photo_index",
             (row[0],),
         ).fetchall()
-        if not images or any(
+        if any(
             download_state not in {"SKIPPED", "COMPLETE"}
             and verification_state not in {"SKIPPED", "COMPLETE"}
             for download_state, verification_state in states
