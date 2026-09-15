@@ -5,18 +5,83 @@ namespace Tests\Feature\Reports;
 use App\Data\ReportPeriod;
 use App\Exports\MonthlyReportExport;
 use App\Models\Examination;
+use App\Models\ExaminationCustomsFormNumber;
 use App\Models\User;
 use App\Services\MonthlyReportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use OpenSpout\Reader\XLSX\Reader;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
 use ZipArchive;
 
 class MonthlyReportExportTest extends TestCase
 {
     use DatabaseMigrations;
+
+    public function test_export_route_uses_the_requested_month_instead_of_the_current_month(): void
+    {
+        $january = Examination::factory()->create([
+            'submission_no' => 'ZB-JAN-2026-ONLY',
+            'submitted_at' => CarbonImmutable::parse('2026-01-15 09:00:00', 'Asia/Kuala_Lumpur'),
+            'agent_name' => 'January Route Agent',
+            'agent_code' => 'JAN-ROUTE',
+            'agent_company_name' => 'January Route Company',
+            'agent_station_code' => 'ST-JAN',
+        ]);
+        ExaminationCustomsFormNumber::create(['examination_id' => $january->id, 'number' => 'JAN-CUSTOMS-2026', 'display_order' => 1]);
+
+        $march = Examination::factory()->create([
+            'submission_no' => 'ZB-MAR-2026-ONLY',
+            'submitted_at' => CarbonImmutable::parse('2026-03-10 10:00:00', 'Asia/Kuala_Lumpur'),
+            'agent_name' => 'March Route Agent',
+            'agent_code' => 'MAR-ROUTE',
+            'agent_company_name' => 'March Route Company',
+            'agent_station_code' => 'ST-MAR',
+        ]);
+        ExaminationCustomsFormNumber::create(['examination_id' => $march->id, 'number' => 'MAR-CUSTOMS-2026', 'display_order' => 1]);
+
+        $september = Examination::factory()->create([
+            'submission_no' => 'ZB-SEP-2026-ONLY',
+            'submitted_at' => CarbonImmutable::parse('2026-09-12 11:00:00', 'Asia/Kuala_Lumpur'),
+            'agent_name' => 'September Route Agent',
+            'agent_code' => 'SEP-ROUTE',
+            'agent_company_name' => 'September Route Company',
+            'agent_station_code' => 'ST-SEP',
+        ]);
+        ExaminationCustomsFormNumber::create(['examination_id' => $september->id, 'number' => 'SEP-CUSTOMS-2026', 'display_order' => 1]);
+
+        $januaryExport = $this->readWorkbookFromExportRoute(['year' => 2026, 'month' => 1]);
+        $januaryValues = $this->workbookValues($januaryExport['sheets']);
+
+        $this->assertStringContainsString('January-2026-Examination-Report.xlsx', $januaryExport['contentDisposition']);
+        $this->assertContains(ReportPeriod::make(2026, 1, 'Asia/Kuala_Lumpur')->label(), $januaryValues);
+        $this->assertContains('ZB-JAN-2026-ONLY', $januaryValues);
+        $this->assertContains('January Route Agent', $januaryValues);
+        $this->assertContains('JAN-CUSTOMS-2026', $januaryValues);
+        $this->assertNotContains('ZB-MAR-2026-ONLY', $januaryValues);
+        $this->assertNotContains('March Route Agent', $januaryValues);
+        $this->assertNotContains('MAR-CUSTOMS-2026', $januaryValues);
+        $this->assertNotContains('ZB-SEP-2026-ONLY', $januaryValues);
+        $this->assertNotContains('September Route Agent', $januaryValues);
+        $this->assertNotContains('SEP-CUSTOMS-2026', $januaryValues);
+
+        $marchExport = $this->readWorkbookFromExportRoute(['year' => 2026, 'month' => 3]);
+        $marchValues = $this->workbookValues($marchExport['sheets']);
+
+        $this->assertStringContainsString('March-2026-Examination-Report.xlsx', $marchExport['contentDisposition']);
+        $this->assertContains(ReportPeriod::make(2026, 3, 'Asia/Kuala_Lumpur')->label(), $marchValues);
+        $this->assertContains('ZB-MAR-2026-ONLY', $marchValues);
+        $this->assertContains('March Route Agent', $marchValues);
+        $this->assertContains('MAR-CUSTOMS-2026', $marchValues);
+        $this->assertNotContains('ZB-JAN-2026-ONLY', $marchValues);
+        $this->assertNotContains('January Route Agent', $marchValues);
+        $this->assertNotContains('JAN-CUSTOMS-2026', $marchValues);
+        $this->assertNotContains('ZB-SEP-2026-ONLY', $marchValues);
+        $this->assertNotContains('September Route Agent', $marchValues);
+        $this->assertNotContains('SEP-CUSTOMS-2026', $marchValues);
+    }
 
     public function test_export_contains_two_sheets_and_literal_user_text(): void
     {
@@ -193,5 +258,52 @@ class MonthlyReportExportTest extends TestCase
         $reader->close();
 
         return $sheets;
+    }
+
+    /**
+     * @param  array<string, list<list<string|int|float|null>>>  $sheets
+     * @return list<string|int|float|null>
+     */
+    private function workbookValues(array $sheets): array
+    {
+        $values = [];
+
+        foreach ($sheets as $rows) {
+            foreach ($rows as $row) {
+                array_push($values, ...$row);
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param  array{year: int, month: int}  $query
+     * @return array{sheets: array<string, list<list<string|int|float|null>>>, contentDisposition: string}
+     */
+    private function readWorkbookFromExportRoute(array $query): array
+    {
+        $response = $this->actingAs(User::factory()->officer()->create())
+            ->get(route('reports.export', $query));
+
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->assertHeader('Content-Disposition');
+
+        $binaryResponse = $response->baseResponse;
+        $this->assertInstanceOf(BinaryFileResponse::class, $binaryResponse);
+
+        $path = $binaryResponse->getFile()->getPathname();
+
+        try {
+            return [
+                'sheets' => $this->readWorkbook($path),
+                'contentDisposition' => (string) $response->headers->get('Content-Disposition'),
+            ];
+        } finally {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
     }
 }

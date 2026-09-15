@@ -29,6 +29,21 @@ class MonthlyReportTest extends TestCase
         }
     }
 
+    public function test_report_export_link_preserves_the_selected_month(): void
+    {
+        $user = User::factory()->officer()->create();
+
+        $this->actingAs($user)
+            ->get(route('reports.index', ['year' => 2026, 'month' => 1]))
+            ->assertOk()
+            ->assertSee(route('reports.export', ['year' => 2026, 'month' => 1]));
+
+        $this->actingAs($user)
+            ->get(route('reports.index', ['year' => 2026, 'month' => 3]))
+            ->assertOk()
+            ->assertSee(route('reports.export', ['year' => 2026, 'month' => 3]));
+    }
+
     public function test_report_uses_approved_metrics_and_historical_snapshots(): void
     {
         $registered = User::factory()->agent()->create([
@@ -108,6 +123,35 @@ class MonthlyReportTest extends TestCase
         $this->assertCount(30, $daily);
         $this->assertSame(0, $daily[1]['submissions']);
         $this->assertSame(1, $daily[2]['submissions']);
+    }
+
+    public function test_agent_summary_retains_more_than_thirty_agents(): void
+    {
+        Examination::factory()->count(35)->sequence(
+            fn ($sequence) => [
+                'submission_no' => sprintf('ZB-AGENT-RETENTION-%02d', $sequence->index + 1),
+                'user_id' => null,
+                'submitted_at' => CarbonImmutable::parse('2026-09-10 01:00:00', 'UTC'),
+                'agent_name' => sprintf('Agent Retention %02d', $sequence->index + 1),
+                'agent_code' => sprintf('AG-RET-%03d', $sequence->index + 1),
+                'agent_company_name' => sprintf('Retention Company %02d', $sequence->index + 1),
+                'agent_station_code' => sprintf('RET-%02d', $sequence->index + 1),
+            ],
+        )->create();
+
+        $response = $this->actingAs(User::factory()->officer()->create())
+            ->get(route('reports.index', ['year' => 2026, 'month' => 9]));
+
+        $response->assertOk()
+            ->assertSee('Agent Retention 01')
+            ->assertSee('Agent Retention 35');
+
+        $agentSummary = $response->viewData('agentSummary');
+
+        $this->assertGreaterThan(30, $agentSummary);
+        $this->assertCount(35, $agentSummary);
+        $this->assertSame('Agent Retention 01', $agentSummary[0]['agent_name']);
+        $this->assertSame('Agent Retention 35', $agentSummary[34]['agent_name']);
     }
 
     public function test_invalid_period_parameters_are_rejected(): void

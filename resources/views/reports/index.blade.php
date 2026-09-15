@@ -17,7 +17,7 @@
                 <p class="mt-1 text-sm text-gray-600">{{ $period->label() }}</p>
             </div>
 
-            <x-ui.button href="{{ route('reports.export', $periodQuery) }}" variant="secondary">
+            <x-ui.button :href="route('reports.export', $periodQuery)" variant="secondary">
                 {{ __('reports.actions.export') }}
             </x-ui.button>
         </div>
@@ -78,9 +78,9 @@
             </x-ui.card>
 
             <x-ui.card title="{{ __('reports.agents.title') }}" aria-labelledby="agents-heading">
-                <div class="mt-3 overflow-x-auto">
+                <div class="mt-3 max-h-[73rem] overflow-auto">
                     <table class="w-full min-w-[34rem] text-left text-sm">
-                        <thead class="border-b border-gray-200 text-xs uppercase text-gray-600">
+                        <thead class="sticky top-0 z-10 border-b border-gray-200 bg-white text-xs uppercase text-gray-600">
                             <tr><th class="px-2 py-2">{{ __('reports.agents.name') }}</th><th class="px-2 py-2">{{ __('reports.agents.code') }}</th><th class="px-2 py-2">{{ __('reports.agents.company') }}</th><th class="px-2 py-2">{{ __('reports.agents.station') }}</th><th class="px-2 py-2 text-right">{{ __('reports.statement.submissions') }}</th></tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
